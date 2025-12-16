@@ -1,7 +1,7 @@
 #### Add Your Own Plugins
 
 Create plugins/mycommand.js:
-js```
+```js
 let handler = async (m, { conn, text }) => {
   await m.reply(`Hello! You said: ${text}`)
 }
