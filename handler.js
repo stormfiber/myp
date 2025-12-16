@@ -6,6 +6,8 @@ const rateLimitMap = new Map()
 export function handler(conn) {
   conn.ev.on('messages.upsert', async ({ messages, type }) => {
     try {
+      if (type !== 'notify') return // Only process new messages
+      
       for (const m of messages) {
         if (!m.message) continue
         if (m.key.remoteJid === 'status@broadcast') continue
@@ -23,14 +25,24 @@ export function handler(conn) {
         // Get message text
         const msg = m.message
         let text = ''
-        if (msg.conversation) text = msg.conversation
-        else if (msg.extendedTextMessage?.text) text = msg.extendedTextMessage.text
-        else if (msg.imageMessage?.caption) text = msg.imageMessage.caption
-        else if (msg.videoMessage?.caption) text = msg.videoMessage.caption
+        const msgType = Object.keys(msg)[0]
+        
+        if (msg.conversation) {
+          text = msg.conversation
+        } else if (msg.extendedTextMessage?.text) {
+          text = msg.extendedTextMessage.text
+        } else if (msg.imageMessage?.caption) {
+          text = msg.imageMessage.caption
+        } else if (msg.videoMessage?.caption) {
+          text = msg.videoMessage.caption
+        }
         
         m.text = text
-        m.args = text.trim().split(/ +/).slice(1)
-        m.command = null
+        m.pushName = m.pushName || 'User'
+        
+        // Initialize database if not exists
+        if (!global.db.data.users) global.db.data.users = {}
+        if (!global.db.data.chats) global.db.data.chats = {}
         
         // Initialize user in database
         if (!global.db.data.users[m.sender]) {
@@ -63,6 +75,12 @@ export function handler(conn) {
         // Check if user or chat is banned
         if (user.banned || (chat && chat.isBanned)) continue
         
+        // Add XP for messaging (1-5 XP)
+        if (!user.banned) {
+          const xpGain = Math.floor(Math.random() * 5) + 1
+          user.exp += xpGain
+        }
+        
         // Rate limiting
         if (global.rateLimitEnabled) {
           const now = Date.now()
@@ -84,13 +102,20 @@ export function handler(conn) {
           await conn.readMessages([m.key])
         }
         
-        // Check for commands
+        // Parse command
+        m.args = []
+        m.command = null
+        
         const prefixRegex = new RegExp(`^[${global.prefix.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')}]`)
         const isCommand = prefixRegex.test(text)
         
-        if (isCommand) {
-          const [cmdName] = text.slice(global.prefix.length).trim().split(/ +/)
-          m.command = cmdName.toLowerCase()
+        if (isCommand && text) {
+          const cmdText = text.slice(global.prefix.length).trim()
+          const args = cmdText.split(/ +/)
+          const cmdName = args.shift()?.toLowerCase()
+          
+          m.command = cmdName
+          m.args = args
           
           // Auto typing
           if (global.autoTyping) {
@@ -100,7 +125,7 @@ export function handler(conn) {
           // Find and execute plugin
           for (const name in plugins) {
             const plugin = plugins[name]
-            if (!plugin) continue
+            if (!plugin || !plugin.default) continue
             
             // Check if command matches
             const commands = Array.isArray(plugin.command) ? plugin.command : [plugin.command]
@@ -194,7 +219,8 @@ export function handler(conn) {
               }
             } catch (error) {
               console.error(`❌ Error in plugin ${name}:`, error)
-              await m.reply(`❌ Error: ${error.message || error}`)
+              const errorMsg = typeof error === 'string' ? error : error.message || 'An error occurred'
+              await m.reply(`❌ ${errorMsg}`)
             }
             
             break
@@ -235,7 +261,7 @@ Keep chatting to level up more! 💪
         }
         
         // Auto reply
-        if (global.autoReply && text) {
+        if (global.autoReply && text && !isCommand) {
           const lowerText = text.toLowerCase()
           for (const [keyword, reply] of Object.entries(global.autoReplyKeywords)) {
             if (lowerText.includes(keyword)) {
@@ -256,7 +282,7 @@ Keep chatting to level up more! 💪
       if (!global.welcomeMessage && action === 'add') return
       
       const metadata = await conn.groupMetadata(id)
-      const chat = global.db.data.chats[id]
+      const chat = global.db.data.chats?.[id]
       
       if (!chat || !chat.welcome) return
       
@@ -298,4 +324,4 @@ if (!Object.prototype.reply) {
     writable: true,
     configurable: true
   })
-      }
+}
