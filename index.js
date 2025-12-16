@@ -48,7 +48,7 @@ async function connectToWhatsApp() {
     version,
     logger,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu(global.botName),
+    browser: Browsers.ubuntu('Chrome'),
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
