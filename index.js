@@ -5,8 +5,7 @@ import makeWASocket, {
   Browsers,
   delay,
   makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion,
-  makeInMemoryStore
+  fetchLatestBaileysVersion
 } from 'baileys'
 import { Boom } from '@hapi/boom'
 import P from 'pino'
@@ -16,6 +15,7 @@ import { filesInit } from './lib/plugins.js'
 import { handler } from './handler.js'
 import Database from './lib/database.js'
 import Helper from './lib/helper.js'
+import makeStore from './lib/store.js'
 
 const logger = P({ level: global.logLevel })
 const groupCache = new NodeCache({ stdTTL: 300, useClones: false })
@@ -37,7 +37,7 @@ if (!global.db.data) {
 }
 
 // Initialize store for messages
-const store = makeInMemoryStore({ logger })
+const store = makeStore(logger)
 global.store = store
 
 async function connectToWhatsApp() {
@@ -141,7 +141,10 @@ setInterval(async () => {
   if (global.db?.data) {
     await global.db.save()
   }
-}, 60000) // Every minute
+  if (store) {
+      await store.save()
+  }
+}, 60000);
 
 console.log('🚀 Starting WhatsApp Bot...\n')
 connectToWhatsApp().catch((err) => {
