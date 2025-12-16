@@ -1,0 +1,42 @@
+{
+  "name": "whatsapp-bot-baileys",
+  "version": "2.0.0",
+  "description": "Advanced WhatsApp Bot using Baileys v7.x with plugin system",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "automation",
+    "plugins"
+  ],
+  "author": "GlobalTechInfo",
+  "license": "MIT",
+  "dependencies": {
+    "baileys": "latest",
+    "@hapi/boom": "^10.0.1",
+    "pino": "^8.19.0",
+    "qrcode-terminal": "^0.12.0",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^3.3.2",
+    "axios": "^1.6.5",
+    "sharp": "^0.33.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "chalk": "^5.3.0",
+    "moment-timezone": "^0.5.45",
+    "syntax-error": "^1.4.0",
+    "file-type": "^19.0.0",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
