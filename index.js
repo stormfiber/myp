@@ -78,10 +78,14 @@ async function connectToWhatsApp() {
   conn.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
-    if (qr) {
+   /* if (qr) {
       console.log('\n📱 Scan this QR code with WhatsApp:\n')
       qrcode.generate(qr, { small: true })
       console.log('\n')
+    } */
+    if (qr) {
+  const code = await conn.requestPairingCode('923051391007')
+  console.log('Pairing code:', code)
     }
 
     if (connection === 'close') {
