@@ -5,7 +5,8 @@ import makeWASocket, {
   Browsers,
   delay,
   makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  makeInMemoryStore
 } from 'baileys'
 import { Boom } from '@hapi/boom'
 import P from 'pino'
@@ -23,7 +24,7 @@ const groupCache = new NodeCache({ stdTTL: 300, useClones: false })
 global.db = new Database('database.json', null, 2)
 
 // Load database
-await global.db._load()
+global.db._load()
 
 // Default database structure
 if (!global.db.data) {
@@ -35,6 +36,10 @@ if (!global.db.data) {
   }
 }
 
+// Initialize store for messages
+const store = makeInMemoryStore({ logger })
+global.store = store
+
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info')
   const { version } = await fetchLatestBaileysVersion()
@@ -43,7 +48,7 @@ async function connectToWhatsApp() {
     version,
     logger,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Firefox'),
+    browser: Browsers.ubuntu(global.botName),
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
@@ -51,34 +56,24 @@ async function connectToWhatsApp() {
     syncFullHistory: global.syncFullHistory,
     markOnlineOnConnect: global.markOnlineOnConnect,
     getMessage: async (key) => {
-      const msg = global.store?.messages?.[key.remoteJid]?.[key.id]
-      return msg?.message || { conversation: '' }
+      if (store) {
+        const msg = await store.loadMessage(key.remoteJid, key.id)
+        return msg?.message || undefined
+      }
+      return undefined
     },
     cachedGroupMetadata: async (jid) => groupCache.get(jid)
   })
 
+  // Bind store to socket
+  store?.bind(conn.ev)
+
   conn.logger = logger
-
-  // Store messages
-  global.store = {
-    messages: {}
-  }
-
-  conn.ev.on('messages.upsert', ({ messages }) => {
-    messages.forEach((msg) => {
-      if (msg.key.remoteJid) {
-        if (!global.store.messages[msg.key.remoteJid]) {
-          global.store.messages[msg.key.remoteJid] = {}
-        }
-        global.store.messages[msg.key.remoteJid][msg.key.id] = msg
-      }
-    })
-  })
 
   conn.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
-   /* if (qr) {
+  /*  if (qr) {
       console.log('\n📱 Scan this QR code with WhatsApp:\n')
       qrcode.generate(qr, { small: true })
       console.log('\n')
@@ -131,7 +126,9 @@ async function connectToWhatsApp() {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n👋 Shutting down...')
-  await global.db.save()
+  if (global.db?.data) {
+    await global.db.save()
+  }
   process.exit(0)
 })
 
@@ -141,7 +138,9 @@ process.on('unhandledRejection', (err) => {
 
 // Auto-save database
 setInterval(async () => {
-  if (global.db.data) await global.db.save()
+  if (global.db?.data) {
+    await global.db.save()
+  }
 }, 60000) // Every minute
 
 console.log('🚀 Starting WhatsApp Bot...\n')
