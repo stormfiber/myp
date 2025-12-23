@@ -50,7 +50,7 @@ module.exports = {
 
             const getSt = (val) => val ? '✅' : '❌';
 
-            let menuText = `╭━━〔 *MEGA-MD CONFIG* 〕━┈\n┃\n`;
+            let menuText = `╭━〔 *MEGA SETTINGS* 〕━┈\n┃\n`;
             menuText += `┃ 👤 *User:* @${cleanJid(senderId)}\n`;
             menuText += `┃ 🤖 *Mode:* ${botMode.toUpperCase()}\n`;
             menuText += `┃\n┣━〔 *GLOBAL CONFIG* 〕━┈\n`;
