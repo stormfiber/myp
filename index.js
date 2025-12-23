@@ -1,21 +1,3 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
-
 /* process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; */
 
 require('./config');
@@ -59,6 +41,7 @@ const { join } = require('path');
 const store = require('./lib/lightweight_store');
 const SaveCreds = require('./lib/session');
 const { app, server, PORT } = require('./lib/server');
+const { printLog } = require('./lib/print');
 const { 
     handleMessages, 
     handleGroupParticipantUpdate, 
@@ -73,7 +56,7 @@ store.readFromFile();
 setInterval(() => store.writeToFile(), settings.storeWriteInterval || 10000);
 
 commandHandler.loadCommands();
-console.log(chalk.greenBright(`✅ Loaded ${commandHandler.commands.size} Plugins`));
+// console.log(chalk.greenBright(`✅ Loaded ${commandHandler.commands.size} Plugins`));
 
 setInterval(() => {
     if (global.gc) {
@@ -146,33 +129,32 @@ function hasValidSession() {
         
         const fileContent = fs.readFileSync(credsPath, 'utf8');
         if (!fileContent || fileContent.trim().length === 0) {
-            console.log(chalk.yellow('⚠️ creds.json exists but is empty'));
+            printLog('warning', 'creds.json exists but is empty');
             return false;
         }
         
         try {
             const creds = JSON.parse(fileContent);
             if (!creds.noiseKey || !creds.signedIdentityKey || !creds.signedPreKey) {
-                console.log(chalk.yellow('⚠️ creds.json is missing required fields'));
+                printLog('warning', 'creds.json is missing required fields');
                 return false;
             }
             if (creds.registered === false) {
-                console.log(chalk.yellow('⚠️ Session credentials exist but are not registered (incomplete pairing)'));
-                console.log(chalk.yellow('   Deleting unregistered session to allow fresh pairing...'));
+                printLog('warning', 'Session credentials exist but are not registered');
                 try {
                     rmSync(path.join(__dirname, 'session'), { recursive: true, force: true });
                 } catch (e) {}
                 return false;
             }
             
-            console.log(chalk.green('✅ Valid and registered session credentials found'));
+            printLog('success', 'Valid and registered session credentials found');
             return true;
         } catch (parseError) {
-            console.log(chalk.yellow('⚠️ creds.json contains invalid JSON'));
+            printLog('warning', 'creds.json contains invalid JSON');
             return false;
         }
     } catch (error) {
-        console.error(chalk.red('Error checking session validity:'), error.message);
+        printLog('error', `Error checking session validity: ${error.message}`);
         return false;
     }
 }
@@ -183,12 +165,12 @@ async function initializeSession() {
     const txt = global.SESSION_ID || process.env.SESSION_ID;
 
     if (!txt) {
-        console.log(chalk.yellow('No SESSION_ID found in environment variables.'));
+        printLog('warning', 'No SESSION_ID found in environment variables');
         if (hasValidSession()) {
-            console.log(chalk.green('✅ Existing session found. Using saved credentials.'));
+            printLog('success', 'Existing session found. Using saved credentials');
             return true;
         }
-        console.log(chalk.yellow('No existing session found. Pairing code will be required.'));
+        printLog('warning', 'No existing session found. Pairing code will be required');
         return false;
     }
     
@@ -201,21 +183,21 @@ async function initializeSession() {
         await delay(2000);
         
         if (hasValidSession()) {
-            console.log(chalk.green('✅ Session file verified and valid.'));
+            printLog('success', 'Session file verified and valid');
             await delay(1000);
             return true;
         } else {
-            console.log(chalk.red('❌ Session file not valid after download.'));
+            printLog('error', 'Session file not valid after download');
             return false;
         }
     } catch (error) {
-        console.error(chalk.red('❌ Error downloading session:'), error.message);
+        printLog('error', `Error downloading session: ${error.message}`);
         return false;
     }
 }
 
 server.listen(PORT, () => {
-    console.log(chalk.greenBright(`🌐 Server listening on port ${PORT}\n`));
+    printLog('success', `Server listening on port ${PORT}`);
 });
 
 async function startQasimDev() {
@@ -229,7 +211,7 @@ async function startQasimDev() {
         const msgRetryCounterCache = new NodeCache();
 
         const hasRegisteredCreds = state.creds && state.creds.registered !== undefined;
-        console.log(chalk.cyan(`📋 Credentials loaded. Registered: ${state.creds?.registered || false}`));
+        printLog('info', `Credentials loaded. Registered: ${state.creds?.registered || false}`);
 
         const QasimDev = makeWASocket({
             version,
@@ -283,9 +265,9 @@ async function startQasimDev() {
                 }
 
                 try {
-                    await handleMessages(QasimDev, chatUpdate, true);
+                    await handleMessages(QasimDev, chatUpdate);
                 } catch (err) {
-                    console.error("Error in handleMessages:", err);
+                    printLog('error', `Error in handleMessages: ${err.message}`);
                     if (mek.key && mek.key.remoteJid) {
                         await QasimDev.sendMessage(mek.key.remoteJid, {
                             text: '❌ An error occurred while processing your message.',
@@ -302,7 +284,7 @@ async function startQasimDev() {
                     }
                 }
             } catch (err) {
-                console.error("Error in messages.upsert:", err);
+                printLog('error', `Error in messages.upsert: ${err.message}`);
             }
         });
 
@@ -347,26 +329,26 @@ async function startQasimDev() {
         if (pairingCode && !isRegistered) {
             if (useMobile) throw new Error('Cannot use pairing code with mobile api');
 
-            console.log(chalk.yellow('\n⚠️  Session not registered. Pairing code required.\n'));
+            printLog('warning', 'Session not registered. Pairing code required');
 
             let phoneNumberInput;
             if (!!global.phoneNumber) {
                 phoneNumberInput = global.phoneNumber;
             } else if (process.env.PAIRING_NUMBER) {
                 phoneNumberInput = process.env.PAIRING_NUMBER;
-                console.log(chalk.yellow(`Using phone number from environment: ${phoneNumberInput}`));
+                printLog('info', `Using phone number from environment: ${phoneNumberInput}`);
             } else if (rl && !rl.closed) {
                 phoneNumberInput = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFormat: 6281376552730 (without + or spaces) : `)));
             } else {
                 phoneNumberInput = phoneNumber;
-                console.log(chalk.yellow(`Using default phone number: ${phoneNumberInput}`));
+                printLog('info', `Using default phone number: ${phoneNumberInput}`);
             }
 
             phoneNumberInput = phoneNumberInput.replace(/[^0-9]/g, '');
 
             const pn = require('awesome-phonenumber');
             if (!pn('+' + phoneNumberInput).isValid()) {
-                console.log(chalk.red('Invalid phone number. Please enter your full international number (e.g., 15551234567 for US, 447911123456 for UK, etc.) without + or spaces.'));
+                printLog('error', 'Invalid phone number format');
                 
                 if (rl && !rl.closed) {
                     rl.close();
@@ -379,15 +361,14 @@ async function startQasimDev() {
                     let code = await QasimDev.requestPairingCode(phoneNumberInput);
                     code = code?.match(/.{1,4}/g)?.join("-") || code;
                     console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)));
-                    console.log(chalk.yellow(`\nPlease enter this code in your WhatsApp app:\n1. Open WhatsApp\n2. Go to Settings > Linked Devices\n3. Tap "Link a Device"\n4. Enter the code shown above`));
+                    printLog('success', `Pairing code generated: ${code}`);
                     
                     if (rl && !rl.closed) {
                         rl.close();
                         rl = null;
                     }
                 } catch (error) {
-                    console.error('Error requesting pairing code:', error);
-                    console.log(chalk.red('Failed to get pairing code. Please check your phone number and try again.'));
+                    printLog('error', `Failed to get pairing code: ${error.message}`);
                 }
             }, 3000);
         } else if (isRegistered) {
@@ -396,7 +377,7 @@ async function startQasimDev() {
                 rl = null;
             }
         } else {
-            console.log(chalk.yellow('⚠️  Waiting for connection to establish...'));
+            printLog('warning', 'Waiting for connection to establish...');
             if (rl && !rl.closed) {
                 rl.close();
                 rl = null;
@@ -407,15 +388,15 @@ async function startQasimDev() {
             const { connection, lastDisconnect, qr } = s;
             
             if (qr) {
-                console.log(chalk.yellow('📱 QR Code generated. Please scan with WhatsApp.'));
+                printLog('info', 'QR Code generated. Please scan with WhatsApp');
             }
             
             if (connection === 'connecting') {
-                console.log(chalk.yellow('🔄 Connecting to WhatsApp...'));
+                printLog('connection', 'Connecting to WhatsApp...');
             }
             
             if (connection == "open") {
-                console.log(chalk.magenta(` `));
+                printLog('success', 'Bot connected successfully!');
                 console.log(chalk.yellow(`🌿Connected to => ` + JSON.stringify(QasimDev.user, null, 2)));
 
                 try {
@@ -433,7 +414,7 @@ async function startQasimDev() {
                         }
                     });
                 } catch (error) {
-                    console.error('Error sending connection message:', error.message);
+                    printLog('error', `Failed to send connection message: ${error.message}`);
                 }
 
                 await delay(1999);
@@ -447,26 +428,27 @@ async function startQasimDev() {
                 console.log(chalk.blue(`Bot Version: ${settings.version}`));
                 console.log(chalk.cyan(`Loaded Commands: ${commandHandler.commands.size}`));
                 console.log(chalk.cyan(`Prefixes: ${settings.prefixes.join(', ')}`));
+                console.log(chalk.gray(`Backend: ${store.getStats().backend}`));
+                console.log();
             }
             
             if (connection === 'close') {
                 const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 
-                console.log(chalk.red(`Connection closed due to ${lastDisconnect?.error}, reconnecting ${shouldReconnect}`));
+                printLog('error', `Connection closed - Status: ${statusCode}`);
                 
                 if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                     try {
                         rmSync('./session', { recursive: true, force: true });
-                        console.log(chalk.yellow('Session folder deleted. Please re-authenticate.'));
+                        printLog('warning', 'Session logged out. Please re-authenticate');
                     } catch (error) {
-                        console.error('Error deleting session:', error);
+                        printLog('error', `Error deleting session: ${error.message}`);
                     }
-                    console.log(chalk.red('Session logged out. Please re-authenticate.'));
                 }
                 
                 if (shouldReconnect) {
-                    console.log(chalk.yellow('Reconnecting...'));
+                    printLog('connection', 'Reconnecting in 5 seconds...');
                     await delay(5000);
                     startQasimDev();
                 }
@@ -491,7 +473,7 @@ async function startQasimDev() {
 
         return QasimDev;
     } catch (error) {
-        console.error('Error in startQasimDev:', error);
+        printLog('error', `Error in startQasimDev: ${error.message}`);
         
         if (rl && !rl.closed) {
             rl.close();
@@ -505,20 +487,20 @@ async function startQasimDev() {
 
 
 async function main() {
-    console.log(chalk.cyan('\n🚀 Starting MEGA MD BOT...\n'));
+    printLog('info', 'Starting MEGA MD BOT...');
     
     const sessionReady = await initializeSession();
     
     if (sessionReady) {
-        console.log(chalk.green('✅ Session initialization complete. Starting bot...\n'));
+        printLog('success', 'Session initialization complete. Starting bot...');
     } else {
-        console.log(chalk.yellow('⚠️  Session initialization incomplete. Will attempt pairing...\n'));
+        printLog('warning', 'Session initialization incomplete. Will attempt pairing...');
     }
     
     await delay(3000);
     
     startQasimDev().catch(error => {
-        console.error('Fatal error:', error);
+        printLog('error', `Fatal error: ${error.message}`);
         
         if (rl && !rl.closed) {
             rl.close();
@@ -548,7 +530,7 @@ setInterval(() => {
       });
     }
   });
-  console.log('🧹 Temp folder auto-cleaned');
+//  console.log('🧹 Temp folder auto-cleaned');
 }, 1 * 60 * 60 * 1000);
 
 const folders = [
@@ -589,48 +571,37 @@ folders.forEach(folder => {
     });
 });
 
-console.log(chalk.greenBright(`✅ OK files: ${okFiles}`));
-console.log(chalk.redBright(`❌Files with errors: ${errorFiles}\n`));
+/**
+* console.log(chalk.greenBright(`✅ OK files: ${okFiles}`));
+* console.log(chalk.redBright(`❌Files with errors: ${errorFiles}\n`));
+*/
 
 process.on('uncaughtException', (err) => {
-    console.error(chalk.red('Uncaught Exception:'), err);
+    printLog('error', `Uncaught Exception: ${err.message}`);
+    console.error(err.stack);
 });
 
 process.on('unhandledRejection', (err) => {
-    console.error(chalk.red('Unhandled Rejection:'), err);
+    printLog('error', `Unhandled Rejection: ${err.message}`);
+    console.error(err.stack);
 });
 
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
-        console.log(chalk.red(`Address localhost:${PORT} in use. Please retry when the port is available!`));
+        printLog('error', `Address localhost:${PORT} in use`);
         server.close();
     } else {
-        console.error(chalk.red('Server error:'), error);
+        printLog('error', `Server error: ${error.message}`);
     }
 });
 
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
     fs.unwatchFile(file);
-    console.log(chalk.redBright(`Update ${__filename}`));
+    printLog('info', 'index.js updated, reloading...');
     delete require.cache[file];
     require(file);
 });
 
 
 
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
