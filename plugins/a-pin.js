@@ -12,42 +12,43 @@ module.exports = {
     const query = args.join(' ');
 
     if (!query) {
-      return await sock.sendMessage(chatId, { 
-        text: '*Error:* Please provide a search term.\n\nExample: `.pinterest lofi anime`' 
-      }, { quoted: message });
+      return await sock.sendMessage(chatId, { text: 'Provide a search term!' }, { quoted: message });
     }
 
     try {
-      const searchUrl = `https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=%2Fsearch%2Fpins%2F%3Fq%3D${encodeURIComponent(query)}&data=%7B%22options%22%3A%7B%22isPrefetch%22%3Afalse%2C%22query%22%3A%22${encodeURIComponent(query)}%22%2C%22scope%22%3A%22pins%22%2C%22no_fetch_context_on_resource%22%3Afalse%7D%2C%22context%22%3A%7B%7D%7D`;
-      
-      const response = await axios.get(searchUrl, {
+      // 1. Fetch the search page directly
+      const { data } = await axios.get(`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-          'Referer': 'https://www.pinterest.com/',
-          'X-Requested-With': 'XMLHttpRequest'
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
         }
       });
 
-      const results = response.data.resource_response.data.results;
-      
-      if (!results || results.length === 0) {
-        return await sock.sendMessage(chatId, { text: '❌ No results found.' }, { quoted: message });
+      // 2. Regex to find all original resolution image URLs
+      // This looks for patterns like "https://i.pinimg.com/originals/...jpg"
+      const re = /https:\/\/i\.pinimg\.com\/originals\/[a-z0-9\/]+\.(jpg|png|gif)/g;
+      const allImages = data.match(re);
+
+      // 3. Check if we actually found images
+      if (!allImages || allImages.length === 0) {
+        return await sock.sendMessage(chatId, { text: '❌ No images found for this query.' }, { quoted: message });
       }
 
-      // 3. Extract top 3 unique images
-      const images = results.slice(0, 3).map(item => item.images.orig.url);
+      // 4. Remove duplicates and pick the first 3
+      const uniqueImages = [...new Set(allImages)].slice(0, 3);
 
-      // 4. Send images one by one
-      for (let i = 0; i < images.length; i++) {
+      // 5. Send images
+      for (let i = 0; i < uniqueImages.length; i++) {
         await sock.sendMessage(chatId, { 
-          image: { url: images[i] }, 
-          caption: `*Result (${i + 1}/3) for:* ${query}` 
-        }, { quoted: i === 0 ? message : null }); // Only quotes the user on the first image to keep chat clean
+          image: { url: uniqueImages[i] }, 
+          caption: `*Result (${i + 1}/3)*` 
+        }, { quoted: i === 0 ? message : null });
       }
 
     } catch (err) {
-      console.error('Pinterest Plugin Error:', err);
-      await sock.sendMessage(chatId, { text: '❌ Service temporarily unavailable. Please try again later.' }, { quoted: message });
+      console.error('Pinterest Error:', err.message);
+      await sock.sendMessage(chatId, { text: '❌ Failed to connect to Pinterest.' }, { quoted: message });
     }
   }
 };
+
