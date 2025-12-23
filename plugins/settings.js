@@ -1,9 +1,11 @@
 const fs = require('fs');
 const isOwnerOrSudo = require('../lib/isOwner');
 const store = require('../lib/lightweight_store');
+const { cleanJid } = require('../lib/isOwner');
 
 function readJsonSafe(path, fallback) {
     try {
+        if (!fs.existsSync(path)) return fallback;
         const txt = fs.readFileSync(path, 'utf8');
         return JSON.parse(txt);
     } catch (_) {
@@ -19,16 +21,16 @@ module.exports = {
     usage: '.settings',
     async handler(sock, message, args, context = {}) {
         const chatId = context.chatId || message.key.remoteJid;
+        const senderId = message.key.participant || message.key.remoteJid;
 
         try {
-            const senderId = message.key.participant || message.key.remoteJid;
             const isOwner = await isOwnerOrSudo(senderId, sock, chatId);
+            const isMe = message.key.fromMe;
 
-            if (!message.key.fromMe && !isOwner) {
-                await sock.sendMessage(chatId, { 
-                    text: '❌ Only bot owner can use this command!' 
+            if (!isMe && !isOwner) {
+                return await sock.sendMessage(chatId, { 
+                    text: '❌ *Access Denied:* Only Owner/Sudo can view settings.' 
                 }, { quoted: message });
-                return;
             }
             
             const isGroup = chatId.endsWith('@g.us');
@@ -40,94 +42,64 @@ module.exports = {
             const autotyping = readJsonSafe(`${dataDir}/autotyping.json`, { enabled: false });
             const pmblocker = readJsonSafe(`${dataDir}/pmblocker.json`, { enabled: false });
             const anticall = readJsonSafe(`${dataDir}/anticall.json`, { enabled: false });
+            
             const userGroupData = readJsonSafe(`${dataDir}/userGroupData.json`, {
-                antilink: {}, antibadword: {}, welcome: {}, goodbye: {}, chatbot: {}, antitag: {}, antibot: {}
+                antilink: {}, antibadword: {}, welcome: {}, goodbye: {}, chatbot: {}, antitag: {}, autoReaction: false
             });
             const autoReaction = Boolean(userGroupData.autoReaction);
 
-            const groupId = isGroup ? chatId : null;
-            const antilinkOn = groupId ? Boolean(userGroupData.antilink && userGroupData.antilink[groupId]) : false;
-            const antibadwordOn = groupId ? Boolean(userGroupData.antibadword && userGroupData.antibadword[groupId]) : false;
-            const welcomeOn = groupId ? Boolean(userGroupData.welcome && userGroupData.welcome[groupId]) : false;
-            const goodbyeOn = groupId ? Boolean(userGroupData.goodbye && userGroupData.goodbye[groupId]) : false;
-            const chatbotOn = groupId ? Boolean(userGroupData.chatbot && userGroupData.chatbot[groupId]) : false;
-            const antitagCfg = groupId ? (userGroupData.antitag && userGroupData.antitag[groupId]) : null;
-            const antibotOn = groupId ? Boolean(userGroupData.antibot && userGroupData.antibot[groupId]) : false;
+            const getSt = (val) => val ? '✅' : '❌';
 
-            const onEmoji = '✅';
-            const offEmoji = '❌';
-            
-            let menuText = `╭━━━『 *⚙️ BOT SETTINGS* ━━╮\n\n`;
-            
-            menuText += `┏━━━━━━━━━━━━━━━━━━━┓\n`;
-            menuText += `┃  *🌐 GLOBAL SETTINGS*\n`;
-            menuText += `┗━━━━━━━━━━━━━━━━━━━┛\n\n`;
-            
-            menuText += `│ 🔰 *Bot Mode:* ${botMode || 'public'}\n`;
-            menuText += `│ ${autoStatus.enabled ? onEmoji : offEmoji} *Auto Status*\n`;
-            menuText += `│ ${autoread.enabled ? onEmoji : offEmoji} *Auto Read*\n`;
-            menuText += `│ ${autotyping.enabled ? onEmoji : offEmoji} *Auto Typing*\n`;
-            menuText += `│ ${pmblocker.enabled ? onEmoji : offEmoji} *PM Blocker*\n`;
-            menuText += `│ ${anticall.enabled ? onEmoji : offEmoji} *Anti Call*\n`;
-            menuText += `│ ${autoReaction ? onEmoji : offEmoji} *Auto Reaction*\n\n`;
+            let menuText = `╭━━〔 *MEGA-MD CONFIG* 〕━┈\n┃\n`;
+            menuText += `┃ 👤 *User:* @${cleanJid(senderId)}\n`;
+            menuText += `┃ 🤖 *Mode:* ${botMode.toUpperCase()}\n`;
+            menuText += `┃\n┣━〔 *GLOBAL CONFIG* 〕━┈\n`;
+            menuText += `┃ ${getSt(autoStatus?.enabled)} *Auto Status*\n`;
+            menuText += `┃ ${getSt(autoread?.enabled)} *Auto Read*\n`;
+            menuText += `┃ ${getSt(autotyping?.enabled)} *Auto Typing*\n`;
+            menuText += `┃ ${getSt(pmblocker?.enabled)} *PM Blocker*\n`;
+            menuText += `┃ ${getSt(anticall?.enabled)} *Anti Call*\n`;
+            menuText += `┃ ${getSt(autoReaction)} *Auto Reaction*\n`;
+            menuText += `┃\n`;
 
-            if (groupId) {
-                // Group Settings Section
-                menuText += `┏━━━━━━━━━━━━━━━━━━━┓\n`;
-                menuText += `┃  *👥 GROUP SETTINGS*\n`;
-                menuText += `┗━━━━━━━━━━━━━━━━━━━┛\n\n`;
+            if (isGroup) {
+                const groupAntilink = (userGroupData.antilink || {})[chatId] || { enabled: false };
+                const groupBadword = (userGroupData.antibadword || {})[chatId] || { enabled: false };
+                const groupAntitag = (userGroupData.antitag || {})[chatId] || { enabled: false };
+                const groupChatbot = (userGroupData.chatbot || {})[chatId] || false;
+                const groupWelcome = (userGroupData.welcome || {})[chatId] || false;
+                const groupGoodbye = (userGroupData.goodbye || {})[chatId] || false;
 
-                if (antilinkOn) {
-                    const al = userGroupData.antilink[groupId];
-                    menuText += `│ ${onEmoji} *Antilink* (${al.action || 'delete'})\n`;
-                } else {
-                    menuText += `│ ${offEmoji} *Antilink*\n`;
-                }
-
-                if (antibadwordOn) {
-                    const ab = userGroupData.antibadword[groupId];
-                    menuText += `│ ${onEmoji} *Anti Badword* (${ab.action || 'delete'})\n`;
-                } else {
-                    menuText += `│ ${offEmoji} *Anti Badword*\n`;
-                }
-
-                menuText += `│ ${welcomeOn ? onEmoji : offEmoji} *Welcome Message*\n`;
-                menuText += `│ ${goodbyeOn ? onEmoji : offEmoji} *Goodbye Message*\n`;
-                menuText += `│ ${chatbotOn ? onEmoji : offEmoji} *AI Chatbot*\n`;
-
-                if (antitagCfg && antitagCfg.enabled) {
-                    menuText += `│ ${onEmoji} *Anti Tag* (${antitagCfg.action || 'delete'})\n`;
-                } else {
-                    menuText += `│ ${offEmoji} *Anti Tag*\n`;
-                }
-
-                menuText += `│ ${antibotOn ? onEmoji : offEmoji} *Anti Bot*\n\n`;
+                menuText += `┣━〔 *GROUP CONFIG* 〕━┈\n`;
+                menuText += `┃ ${getSt(groupAntilink.enabled)} *Antilink*\n`;
+                menuText += `┃ ${getSt(groupBadword.enabled)} *Antibadword*\n`;
+                menuText += `┃ ${getSt(groupAntitag.enabled)} *Antitag*\n`;
+                menuText += `┃ ${getSt(groupChatbot)} *Chatbot*\n`;
+                menuText += `┃ ${getSt(groupWelcome)} *Welcome*\n`;
+                menuText += `┃ ${getSt(groupGoodbye)} *Goodbye*\n`;
             } else {
-                menuText += `\n*ℹ️ Info:* Use this command in a group to see group-specific settings.\n\n`;
+                menuText += `┃ 💡 *Note:* _Use in group for group configs._\n`;
             }
 
-            menuText += `╰━━━━━━━━━━━━━━━━━━╯\n\n`;
-            menuText += `_🕐 Updated: ${new Date().toLocaleTimeString()}_`;
+            menuText += `┃\n╰━━━━━━━━━━━━━━━━┈`;
 
             await sock.sendMessage(chatId, { 
                 text: menuText,
+                mentions: [senderId],
                 contextInfo: {
-                    forwardingScore: 1,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363319098372999@newsletter',
-                        newsletterName: 'MEGA MD',
-                        serverMessageId: -1
+                    externalAdReply: {
+                        title: "SYSTEM SETTINGS PANEL",
+                        body: "Configuration Status",
+                        thumbnailUrl: "https://github.com/GlobalTechInfo.png",
+                        mediaType: 1,
+                        renderLargerThumbnail: true
                     }
                 }
             }, { quoted: message });
 
         } catch (error) {
             console.error('Settings Command Error:', error);
-            await sock.sendMessage(chatId, { 
-                text: '❌ Failed to read settings.' 
-            }, { quoted: message });
+            await sock.sendMessage(chatId, { text: '❌ Error: Settings file is corrupted or missing.' }, { quoted: message });
         }
     }
 };
-     
