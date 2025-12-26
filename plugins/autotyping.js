@@ -45,7 +45,7 @@ async function isAutotypingEnabled() {
 
 async function isGhostModeActive() {
     try {
-        const ghostMode = await store.getSetting('global', 'ghostMode');
+        const ghostMode = await store.getSetting('global', 'stealthMode');
         return ghostMode && ghostMode.enabled;
     } catch (error) {
         return false;
