@@ -213,6 +213,13 @@ async function startQasimDev() {
         const hasRegisteredCreds = state.creds && state.creds.registered !== undefined;
         printLog('info', `Credentials loaded. Registered: ${state.creds?.registered || false}`);
 
+        const ghostMode = await store.getSetting('global', 'stealthMode');
+        const isGhostActive = ghostMode && ghostMode.enabled;
+        
+        if (isGhostActive) {
+            printLog('info', '👻 STEALTH MODE IS ACTIVE - Starting in stealth mode');
+        }
+
         const QasimDev = makeWASocket({
             version,
             logger: pino({ level: 'silent' }),
@@ -222,7 +229,7 @@ async function startQasimDev() {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
             },
-            markOnlineOnConnect: true,
+            markOnlineOnConnect: !isGhostActive,
             generateHighQualityLinkPreview: true,
             syncFullHistory: false,
             getMessage: async (key) => {
@@ -235,6 +242,67 @@ async function startQasimDev() {
             connectTimeoutMs: 60000,
             keepAliveIntervalMs: 10000,
         });
+
+        const originalSendPresenceUpdate = QasimDev.sendPresenceUpdate;
+        const originalReadMessages = QasimDev.readMessages;
+        const originalSendReceipt = QasimDev.sendReceipt;
+        const originalSendReadReceipt = QasimDev.sendReadReceipt;
+        
+        QasimDev.sendPresenceUpdate = async function(...args) {
+            const ghostMode = await store.getSetting('global', 'stealthMode');
+            if (ghostMode && ghostMode.enabled) {
+                printLog('info', '👻 Blocked presence update (stealth mode)');
+                return;
+            }
+            return originalSendPresenceUpdate.apply(this, args);
+        };
+        
+        QasimDev.readMessages = async function(...args) {
+            const ghostMode = await store.getSetting('global', 'stealthMode');
+            if (ghostMode && ghostMode.enabled) {
+                return;
+            }
+            return originalReadMessages.apply(this, args);
+        };
+
+        if (originalSendReceipt) {
+            QasimDev.sendReceipt = async function(...args) {
+                const ghostMode = await store.getSetting('global', 'stealthMode');
+                if (ghostMode && ghostMode.enabled) {
+                    return;
+                }
+                return originalSendReceipt.apply(this, args);
+            };
+        }
+        
+        if (originalSendReadReceipt) {
+            QasimDev.sendReadReceipt = async function(...args) {
+                const ghostMode = await store.getSetting('global', 'stealthMode');
+                if (ghostMode && ghostMode.enabled) {
+                    return;
+                }
+                return originalSendReadReceipt.apply(this, args);
+            };
+        }
+        
+        const originalQuery = QasimDev.query;
+        QasimDev.query = async function(node, ...args) {
+            const ghostMode = await store.getSetting('global', 'stealthMode');
+            if (ghostMode && ghostMode.enabled) {
+                if (node && node.tag === 'receipt') {
+                    return;
+                }
+                if (node && node.attrs && (node.attrs.type === 'read' || node.attrs.type === 'read-self')) {
+                    return;
+                }
+            }
+            return originalQuery.apply(this, [node, ...args]);
+        };
+        
+        QasimDev.isGhostMode = async () => {
+            const ghostMode = await store.getSetting('global', 'stealthMode');
+            return ghostMode && ghostMode.enabled;
+        };
 
         QasimDev.ev.on('creds.update', saveCreds);
         store.bind(QasimDev.ev);
@@ -397,12 +465,22 @@ async function startQasimDev() {
             
             if (connection == "open") {
                 printLog('success', 'Bot connected successfully!');
+                
+                const ghostMode = await store.getSetting('global', 'stealthMode');
+                if (ghostMode && ghostMode.enabled) {
+                    printLog('info', '👻 STEALTH MODE ACTIVE - Bot is in stealth mode');
+                    console.log(chalk.gray('• No online status'));
+                    console.log(chalk.gray('• No typing indicators'));
+                }
+                
                 console.log(chalk.yellow(`🌿Connected to => ` + JSON.stringify(QasimDev.user, null, 2)));
 
                 try {
                     const botNumber = QasimDev.user.id.split(':')[0] + '@s.whatsapp.net';
+                    const ghostStatus = (ghostMode && ghostMode.enabled) ? '\n👻 Stealth Mode: ACTIVE' : '';
+                    
                     await QasimDev.sendMessage(botNumber, {
-                        text: `🤖 Bot Connected Successfully!\n\n⏰ Time: ${new Date().toLocaleString()}\n✅ Status: Online and Ready!\n\n✅Make sure to join below channel`,
+                        text: `🤖 Bot Connected Successfully!\n\n⏰ Time: ${new Date().toLocaleString()}\n✅ Status: Online and Ready!${ghostStatus}\n\n✅Make sure to join below channel`,
                         contextInfo: {
                             forwardingScore: 1,
                             isForwarded: true,
@@ -417,8 +495,8 @@ async function startQasimDev() {
                     printLog('error', `Failed to send connection message: ${error.message}`);
                 }
 
-                await delay(1999);
-                console.log(chalk.yellow(`\n\n                  ${chalk.bold.blue(`[ ${global.botname || 'MEGA AI'} ]`)}\n\n`));
+                 await delay(1999);
+                console.log(chalk.yellow(`\n\n                  ${chalk.bold.blue(`[ ${global.botname || 'MEGA-MD'} ]`)}\n\n`));
                 console.log(chalk.cyan(`< ================================================== >`));
                 console.log(chalk.magenta(`\n${global.themeemoji || '•'} YT CHANNEL: GlobalTechInfo`));
                 console.log(chalk.magenta(`${global.themeemoji || '•'} GITHUB: GlobalTechInfo`));
@@ -602,6 +680,4 @@ fs.watchFile(file, () => {
     delete require.cache[file];
     require(file);
 });
-
-
 
