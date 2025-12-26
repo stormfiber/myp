@@ -1,6 +1,6 @@
 {
   "name": "mega",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "WhatsApp Bot",
   "main": "index.js",
   "directories": {"lib": "lib","data": "data","plugins": "plugins"},
@@ -26,7 +26,7 @@
   "author": "GlobalTechInfo",
   "dependencies": {
   "@adiwajshing/keyed-db": "^0.2.4",
-  "@whiskeysockets/baileys": "^v7.0.0-rc.9",
+  "@whiskeysockets/baileys": "^7.0.0-rc.9",
   "@hapi/boom": "^10.0.1",
   "acrcloud": "^1.4.0",
   "api-qasim": "^3.2.10",
