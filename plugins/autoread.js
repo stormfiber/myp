@@ -84,9 +84,9 @@ function isBotMentionedInMessage(message, botNumber) {
 
 async function handleAutoread(sock, message) {
     try {
-        const ghostMode = await store.getSetting('global', 'ghostMode');
+        const ghostMode = await store.getSetting('global', 'stealthMode');
         if (ghostMode && ghostMode.enabled) {
-            console.log('👻 Stealth mode active - skipping read receipt');
+            console.log('👻 Stealth mode active - no presence update');
             return false;
         }
     } catch (err) {
@@ -134,7 +134,7 @@ module.exports = {
             const action = args[0]?.toLowerCase();
             
             if (!action) {
-                const ghostMode = await store.getSetting('global', 'ghostMode');
+                const ghostMode = await store.getSetting('global', 'stealthMode');
                 const ghostActive = ghostMode && ghostMode.enabled;
                 
                 await sock.sendMessage(chatId, {
@@ -164,7 +164,7 @@ module.exports = {
                 config.enabled = true;
                 await saveConfig(config);
                 
-                const ghostMode = await store.getSetting('global', 'ghostMode');
+                const ghostMode = await store.getSetting('global', 'stealthMode');
                 const ghostActive = ghostMode && ghostMode.enabled;
                 
                 await sock.sendMessage(chatId, {
