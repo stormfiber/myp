@@ -1,43 +1,46 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const store = require('../lib/lightweight_store');
 
-function loadState() {
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
+
+const mentionFilePath = path.join(__dirname, '..', 'data', 'mention.json');
+
+async function loadState() {
     try {
-        const raw = fs.readFileSync(path.join(__dirname, '..', 'data', 'mention.json'), 'utf8');
-        const state = JSON.parse(raw);
-        if (state && typeof state.assetPath === 'string' && state.assetPath.endsWith('assets/mention_default.webp')) {
-            return { enabled: !!state.enabled, assetPath: '', type: 'text' };
+        if (HAS_DB) {
+            const state = await store.getSetting('global', 'mention');
+            if (state && typeof state.assetPath === 'string' && state.assetPath.endsWith('assets/mention_default.webp')) {
+                return { enabled: !!state.enabled, assetPath: '', type: 'text' };
+            }
+            return state || { enabled: false, assetPath: '', type: 'text' };
+        } else {
+            const raw = fs.readFileSync(mentionFilePath, 'utf8');
+            const state = JSON.parse(raw);
+            if (state && typeof state.assetPath === 'string' && state.assetPath.endsWith('assets/mention_default.webp')) {
+                return { enabled: !!state.enabled, assetPath: '', type: 'text' };
+            }
+            return state;
         }
-        return state;
     } catch {
         return { enabled: false, assetPath: '', type: 'text' };
     }
 }
 
-function saveState(state) {
-    const dataDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+async function saveState(state) {
+    if (HAS_DB) {
+        await store.saveSetting('global', 'mention', state);
+    } else {
+        const dataDir = path.join(__dirname, '..', 'data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        fs.writeFileSync(mentionFilePath, JSON.stringify(state, null, 2));
     }
-    fs.writeFileSync(path.join(dataDir, 'mention.json'), JSON.stringify(state, null, 2));
 }
 
 async function ensureDefaultSticker(state) {
@@ -64,7 +67,7 @@ async function handleMentionDetection(sock, chatId, message) {
     try {
         if (message.key?.fromMe) return;
 
-        const state = loadState();
+        const state = await loadState();
         await ensureDefaultSticker(state);
         if (!state.enabled) return;
 
@@ -206,7 +209,7 @@ async function setMentionCommand(sock, chatId, message, isOwner) {
         else { ext = 'mp3'; mimetype = 'audio/mpeg'; }
     }
     else if (type === 'text') ext = 'txt';
-    const stateBefore = loadState();
+    const stateBefore = await loadState();
     try {
         const assetsDir = path.join(__dirname, '..', 'assets');
         if (fs.existsSync(assetsDir)) {
@@ -238,14 +241,16 @@ async function setMentionCommand(sock, chatId, message, isOwner) {
         return sock.sendMessage(chatId, { text: '❌ *Failed to save file*' }, { quoted: message });
     }
 
-    const state = loadState();
+    const state = await loadState();
     state.assetPath = path.join('assets', outName);
     state.type = type;
     if (type === 'audio') state.mimetype = mimetype;
     if (type === 'audio') state.ptt = ptt;
     if (type === 'video') state.gifPlayback = gifPlayback;
-    saveState(state);
-    return sock.sendMessage(chatId, { text: `✅ *Mention reply updated!*\n\nType: ${type}` }, { quoted: message });
+    await saveState(state);
+    return sock.sendMessage(chatId, { 
+        text: `✅ *Mention reply updated!*\n\nType: ${type}\nStorage: ${HAS_DB ? 'Database' : 'File System'}` 
+    }, { quoted: message });
 }
 
 module.exports = {
@@ -265,11 +270,11 @@ module.exports = {
                 text: '❌ *Invalid usage*\n\nUsage: `.mention on|off`' 
             }, { quoted: message });
         }
-        const state = loadState();
+        const state = await loadState();
         state.enabled = onoff === 'on';
-        saveState(state);
+        await saveState(state);
         return sock.sendMessage(chatId, { 
-            text: `✅ *Mention reply ${state.enabled ? 'enabled' : 'disabled'}*` 
+            text: `✅ *Mention reply ${state.enabled ? 'enabled' : 'disabled'}*\n\nStorage: ${HAS_DB ? 'Database' : 'File System'}` 
         }, { quoted: message });
     },
 
@@ -277,19 +282,3 @@ module.exports = {
     setMentionCommand
 };
 
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

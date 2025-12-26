@@ -1,20 +1,3 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
 const isOwnerOrSudo = require('../lib/isOwner');
@@ -116,20 +99,3 @@ function startAutoClear() {
 }
 
 startAutoClear();
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

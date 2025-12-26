@@ -1,26 +1,9 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 module.exports = {
-  command: 'clone',
-  aliases: ['githubdl', 'gitclone'],
+  command: 'gitclone',
+  aliases: ['githubdl', 'clone'],
   category: 'owner',
   description: 'Download a GitHub repository as zip',
-  usage: '.clone <url> OR <username> <repo>',
+  usage: '.gitclone <url> OR <username> <repo>',
 
   async handler(sock, message, args) {
     const chatId = message.key.remoteJid;
@@ -68,20 +51,3 @@ module.exports = {
     }
   }
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

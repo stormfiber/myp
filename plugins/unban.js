@@ -1,21 +1,36 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
+
+const bannedFilePath = './data/banned.json';
+
+async function getBannedUsers() {
+    if (HAS_DB) {
+        const banned = await store.getSetting('global', 'banned');
+        return banned || [];
+    } else {
+        if (fs.existsSync(bannedFilePath)) {
+            return JSON.parse(fs.readFileSync(bannedFilePath));
+        }
+        return [];
+    }
+}
+
+async function saveBannedUsers(bannedUsers) {
+    if (HAS_DB) {
+        await store.saveSetting('global', 'banned', bannedUsers);
+    } else {
+        if (!fs.existsSync('./data')) {
+            fs.mkdirSync('./data', { recursive: true });
+        }
+        fs.writeFileSync(bannedFilePath, JSON.stringify(bannedUsers, null, 2));
+    }
+}
 
 module.exports = {
   command: 'unban',
@@ -71,15 +86,15 @@ module.exports = {
     }
 
     try {
-      const bannedUsers = JSON.parse(fs.readFileSync('./data/banned.json'));
+      const bannedUsers = await getBannedUsers();
       const index = bannedUsers.indexOf(userToUnban);
       
       if (index > -1) {
         bannedUsers.splice(index, 1);
-        fs.writeFileSync('./data/banned.json', JSON.stringify(bannedUsers, null, 2));
+        await saveBannedUsers(bannedUsers);
         
         await sock.sendMessage(chatId, { 
-          text: `✅ Successfully unbanned @${userToUnban.split('@')[0]}!`,
+          text: `✅ Successfully unbanned @${userToUnban.split('@')[0]}!\n\nStorage: ${HAS_DB ? 'Database' : 'File System'}`,
           mentions: [userToUnban],
           ...channelInfo 
         }, { quoted: message });
@@ -100,18 +115,4 @@ module.exports = {
   }
 };
 
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
+

@@ -1,21 +1,40 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
+
+const bannedFilePath = './data/banned.json';
+
+async function getBannedUsers() {
+    if (HAS_DB) {
+        const banned = await store.getSetting('global', 'banned');
+        return banned || [];
+    } else {
+        if (fs.existsSync(bannedFilePath)) {
+            return JSON.parse(fs.readFileSync(bannedFilePath));
+        }
+        return [];
+    }
+}
+
+async function saveBannedUsers(bannedUsers) {
+    if (HAS_DB) {
+        await store.saveSetting('global', 'banned', bannedUsers);
+    } else {
+        if (!fs.existsSync('./data')) {
+            fs.mkdirSync('./data', { recursive: true });
+        }
+        fs.writeFileSync(bannedFilePath, JSON.stringify(bannedUsers, null, 2));
+    }
+}
+
+async function isUserBanned(userId) {
+    const bannedUsers = await getBannedUsers();
+    return bannedUsers.includes(userId);
+}
 
 module.exports = {
     command: 'ban',
@@ -57,23 +76,15 @@ module.exports = {
         } catch (e) {}
 
         try {
-            const bannedFilePath = './data/banned.json';
-            let bannedUsers = [];
-            
-            if (fs.existsSync(bannedFilePath)) {
-                bannedUsers = JSON.parse(fs.readFileSync(bannedFilePath));
-            } else {
-                if (!fs.existsSync('./data')) {
-                    fs.mkdirSync('./data', { recursive: true });
-                }
-            }
+            let bannedUsers = await getBannedUsers();
             
             if (!bannedUsers.includes(userToBan)) {
                 bannedUsers.push(userToBan);
-                fs.writeFileSync(bannedFilePath, JSON.stringify(bannedUsers, null, 2));
+                await saveBannedUsers(bannedUsers);
                 
                 await sock.sendMessage(chatId, { 
-                    text: `🚫 *User Banned Successfully!*\n\n@${userToBan.split('@')[0]} has been banned from using the bot.`,
+                    text: `🚫 *User Banned Successfully!*\n\n@${userToBan.split('@')[0]} has been banned from using the bot.\n\n` +
+                          `*Storage:* ${HAS_DB ? 'Database' : 'File System'}`,
                     mentions: [userToBan],
                     ...channelInfo 
                 }, { quoted: message });
@@ -94,19 +105,6 @@ module.exports = {
     }
 };
 
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
+module.exports.getBannedUsers = getBannedUsers;
+module.exports.saveBannedUsers = saveBannedUsers;
+module.exports.isUserBanned = isUserBanned;

@@ -1,28 +1,17 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { writeFile } = require('fs/promises');
+const store = require('../lib/lightweight_store');
 
 const messageStore = new Map();
 const CONFIG_PATH = path.join(__dirname, '../data/antidelete.json');
 const TEMP_MEDIA_DIR = path.join(__dirname, '../tmp');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 if (!fs.existsSync(TEMP_MEDIA_DIR)) {
     fs.mkdirSync(TEMP_MEDIA_DIR, { recursive: true });
@@ -65,18 +54,27 @@ const cleanTempFolderIfLarge = () => {
 
 setInterval(cleanTempFolderIfLarge, 60 * 1000);
 
-function loadAntideleteConfig() {
+async function loadAntideleteConfig() {
     try {
-        if (!fs.existsSync(CONFIG_PATH)) return { enabled: false };
-        return JSON.parse(fs.readFileSync(CONFIG_PATH));
+        if (HAS_DB) {
+            const config = await store.getSetting('global', 'antidelete');
+            return config || { enabled: false };
+        } else {
+            if (!fs.existsSync(CONFIG_PATH)) return { enabled: false };
+            return JSON.parse(fs.readFileSync(CONFIG_PATH));
+        }
     } catch {
         return { enabled: false };
     }
 }
 
-function saveAntideleteConfig(config) {
+async function saveAntideleteConfig(config) {
     try {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        if (HAS_DB) {
+            await store.saveSetting('global', 'antidelete', config);
+        } else {
+            fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        }
     } catch (err) {
         console.error('Config save error:', err);
     }
@@ -84,7 +82,7 @@ function saveAntideleteConfig(config) {
 
 async function storeMessage(sock, message) {
     try {
-        const config = loadAntideleteConfig();
+        const config = await loadAntideleteConfig();
         if (!config.enabled) return;
 
         if (!message.key?.id) return;
@@ -201,7 +199,7 @@ async function storeMessage(sock, message) {
 
 async function handleMessageRevocation(sock, revocationMessage) {
     try {
-        const config = loadAntideleteConfig();
+        const config = await loadAntideleteConfig();
         if (!config.enabled) return;
 
         const messageId = revocationMessage.message.protocolMessage.key.id;
@@ -305,13 +303,14 @@ module.exports = {
 
     async handler(sock, message, args, context = {}) {
         const chatId = context.chatId || message.key.remoteJid;
-        const config = loadAntideleteConfig();
+        const config = await loadAntideleteConfig();
         const action = args[0]?.toLowerCase();
 
         if (!action) {
             await sock.sendMessage(chatId, {
                 text: `*🔰 ANTIDELETE SETUP 🔰*\n\n` +
-                      `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n\n` +
+                      `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                      `*Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                       `*Commands:*\n` +
                       `• \`.antidelete on\` - Enable\n` +
                       `• \`.antidelete off\` - Disable\n\n` +
@@ -326,9 +325,10 @@ module.exports = {
 
         if (action === 'on') {
             config.enabled = true;
-            saveAntideleteConfig(config);
+            await saveAntideleteConfig(config);
             await sock.sendMessage(chatId, {
                 text: `✅ *Antidelete enabled!*\n\n` +
+                      `Storage: ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                       `The bot will now:\n` +
                       `• Track all messages\n` +
                       `• Monitor deleted messages\n` +
@@ -337,7 +337,7 @@ module.exports = {
             }, { quoted: message });
         } else if (action === 'off') {
             config.enabled = false;
-            saveAntideleteConfig(config);
+            await saveAntideleteConfig(config);
             await sock.sendMessage(chatId, {
                 text: `❌ *Antidelete disabled!*\n\n` +
                       `The bot will no longer track deleted messages.`
@@ -354,20 +354,3 @@ module.exports = {
     loadAntideleteConfig,
     saveAntideleteConfig
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

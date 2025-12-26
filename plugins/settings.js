@@ -1,17 +1,6 @@
-const fs = require('fs');
 const isOwnerOrSudo = require('../lib/isOwner');
 const store = require('../lib/lightweight_store');
 const { cleanJid } = require('../lib/isOwner');
-
-function readJsonSafe(path, fallback) {
-    try {
-        if (!fs.existsSync(path)) return fallback;
-        const txt = fs.readFileSync(path, 'utf8');
-        return JSON.parse(txt);
-    } catch (_) {
-        return fallback;
-    }
-}
 
 module.exports = {
     command: 'settings',
@@ -34,19 +23,16 @@ module.exports = {
             }
             
             const isGroup = chatId.endsWith('@g.us');
-            const dataDir = './data';
 
             const botMode = await store.getBotMode();
-            const autoStatus = readJsonSafe(`${dataDir}/autoStatus.json`, { enabled: false });
-            const autoread = readJsonSafe(`${dataDir}/autoread.json`, { enabled: false });
-            const autotyping = readJsonSafe(`${dataDir}/autotyping.json`, { enabled: false });
-            const pmblocker = readJsonSafe(`${dataDir}/pmblocker.json`, { enabled: false });
-            const anticall = readJsonSafe(`${dataDir}/anticall.json`, { enabled: false });
             
-            const userGroupData = readJsonSafe(`${dataDir}/userGroupData.json`, {
-                antilink: {}, antibadword: {}, welcome: {}, goodbye: {}, chatbot: {}, antitag: {}, autoReaction: false
-            });
-            const autoReaction = Boolean(userGroupData.autoReaction);
+            const allSettings = await store.getAllSettings('global');
+            const autoStatus = allSettings.autoStatus || { enabled: false };
+            const autoread = allSettings.autoread || { enabled: false };
+            const autotyping = allSettings.autotyping || { enabled: false };
+            const pmblocker = allSettings.pmblocker || { enabled: false };
+            const anticall = allSettings.anticall || { enabled: false };
+            const autoReaction = allSettings.autoReaction || false;
 
             const getSt = (val) => val ? '✅' : '❌';
 
@@ -63,12 +49,14 @@ module.exports = {
             menuText += `┃\n`;
 
             if (isGroup) {
-                const groupAntilink = (userGroupData.antilink || {})[chatId] || { enabled: false };
-                const groupBadword = (userGroupData.antibadword || {})[chatId] || { enabled: false };
-                const groupAntitag = (userGroupData.antitag || {})[chatId] || { enabled: false };
-                const groupChatbot = (userGroupData.chatbot || {})[chatId] || false;
-                const groupWelcome = (userGroupData.welcome || {})[chatId] || false;
-                const groupGoodbye = (userGroupData.goodbye || {})[chatId] || false;
+                const groupSettings = await store.getAllSettings(chatId);
+                
+                const groupAntilink = groupSettings.antilink || { enabled: false };
+                const groupBadword = groupSettings.antibadword || { enabled: false };
+                const groupAntitag = groupSettings.antitag || { enabled: false };
+                const groupChatbot = groupSettings.chatbot || false;
+                const groupWelcome = groupSettings.welcome || false;
+                const groupGoodbye = groupSettings.goodbye || false;
 
                 menuText += `┣━〔 *GROUP CONFIG* 〕━┈\n`;
                 menuText += `┃ ${getSt(groupAntilink.enabled)} *Antilink*\n`;
@@ -99,7 +87,9 @@ module.exports = {
 
         } catch (error) {
             console.error('Settings Command Error:', error);
-            await sock.sendMessage(chatId, { text: '❌ Error: Settings file is corrupted or missing.' }, { quoted: message });
+            await sock.sendMessage(chatId, { 
+                text: '❌ Error: Failed to load settings.' 
+            }, { quoted: message });
         }
     }
 };

@@ -1,20 +1,3 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const axios = require('axios');
 
 module.exports = {
@@ -33,11 +16,11 @@ module.exports = {
     }
 
     try {
-      const apiUrl = `https://discardapi.dpdns.org/api/tools/handwrite?apikey=guru&text=${encodeURIComponent(textInput)}`;
+      const apiUrl = `https://discardapi.onrender.com/api/tools/handwrite?apikey=guru&text=${encodeURIComponent(textInput)}`;
 
       const { data } = await axios.get(apiUrl, {
         responseType: 'arraybuffer',
-        timeout: 10000,
+        timeout: 15000,
       });
 
       const caption = `✍️ Handwritten Text:\n${textInput}`;
@@ -54,20 +37,3 @@ module.exports = {
     }
   }
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

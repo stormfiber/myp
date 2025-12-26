@@ -1,32 +1,45 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const databaseDir = path.join(process.cwd(), 'data');
 const warningsPath = path.join(databaseDir, 'warnings.json');
 
 function initializeWarningsFile() {
-  if (!fs.existsSync(databaseDir)) {
-    fs.mkdirSync(databaseDir, { recursive: true });
+  if (!HAS_DB) {
+    if (!fs.existsSync(databaseDir)) {
+      fs.mkdirSync(databaseDir, { recursive: true });
+    }
+    
+    if (!fs.existsSync(warningsPath)) {
+      fs.writeFileSync(warningsPath, JSON.stringify({}), 'utf8');
+    }
   }
-  
-  if (!fs.existsSync(warningsPath)) {
-    fs.writeFileSync(warningsPath, JSON.stringify({}), 'utf8');
+}
+
+async function getWarnings() {
+  if (HAS_DB) {
+    const warnings = await store.getSetting('global', 'warnings');
+    return warnings || {};
+  } else {
+    try {
+      return JSON.parse(fs.readFileSync(warningsPath, 'utf8'));
+    } catch (error) {
+      return {};
+    }
+  }
+}
+
+async function saveWarnings(warnings) {
+  if (HAS_DB) {
+    await store.saveSetting('global', 'warnings', warnings);
+  } else {
+    fs.writeFileSync(warningsPath, JSON.stringify(warnings, null, 2));
   }
 }
 
@@ -66,23 +79,19 @@ module.exports = {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       try {
-        let warnings = {};
-        try {
-          warnings = JSON.parse(fs.readFileSync(warningsPath, 'utf8'));
-        } catch (error) {
-          warnings = {};
-        }
+        let warnings = await getWarnings();
         
         if (!warnings[chatId]) warnings[chatId] = {};
         if (!warnings[chatId][userToWarn]) warnings[chatId][userToWarn] = 0;
         
         warnings[chatId][userToWarn]++;
-        fs.writeFileSync(warningsPath, JSON.stringify(warnings, null, 2));
+        await saveWarnings(warnings);
 
         const warningMessage = `*『 WARNING ALERT 』*\n\n` +
           `👤 *Warned User:* @${userToWarn.split('@')[0]}\n` +
           `⚠️ *Warning Count:* ${warnings[chatId][userToWarn]}/3\n` +
-          `👑 *Warned By:* @${senderId.split('@')[0]}\n\n` +
+          `👑 *Warned By:* @${senderId.split('@')[0]}\n` +
+          `🗄️ *Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
           `📅 *Date:* ${new Date().toLocaleString()}`;
 
         await sock.sendMessage(chatId, { 
@@ -96,7 +105,7 @@ module.exports = {
 
           await sock.groupParticipantsUpdate(chatId, [userToWarn], "remove");
           delete warnings[chatId][userToWarn];
-          fs.writeFileSync(warningsPath, JSON.stringify(warnings, null, 2));
+          await saveWarnings(warnings);
           
           const kickMessage = `*『 AUTO-KICK 』*\n\n` +
             `@${userToWarn.split('@')[0]} has been removed from the group after receiving 3 warnings! ⚠️`;
@@ -139,20 +148,3 @@ module.exports = {
     }
   }
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

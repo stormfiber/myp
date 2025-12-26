@@ -1,39 +1,41 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const configPath = path.join(__dirname, '..', 'data', 'autotyping.json');
 
-function initConfig() {
-    if (!fs.existsSync(configPath)) {
-        const dataDir = path.dirname(configPath);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
+async function initConfig() {
+    if (HAS_DB) {
+        const config = await store.getSetting('global', 'autotyping');
+        return config || { enabled: false };
+    } else {
+        if (!fs.existsSync(configPath)) {
+            const dataDir = path.dirname(configPath);
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            fs.writeFileSync(configPath, JSON.stringify({ enabled: false }, null, 2));
         }
-        fs.writeFileSync(configPath, JSON.stringify({ enabled: false }, null, 2));
+        return JSON.parse(fs.readFileSync(configPath));
     }
-    return JSON.parse(fs.readFileSync(configPath));
 }
 
-function isAutotypingEnabled() {
+async function saveConfig(config) {
+    if (HAS_DB) {
+        await store.saveSetting('global', 'autotyping', config);
+    } else {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    }
+}
+
+async function isAutotypingEnabled() {
     try {
-        const config = initConfig();
+        const config = await initConfig();
         return config.enabled;
     } catch (error) {
         console.error('Error checking autotyping status:', error);
@@ -41,8 +43,23 @@ function isAutotypingEnabled() {
     }
 }
 
+async function isGhostModeActive() {
+    try {
+        const ghostMode = await store.getSetting('global', 'ghostMode');
+        return ghostMode && ghostMode.enabled;
+    } catch (error) {
+        return false;
+    }
+}
+
 async function handleAutotypingForMessage(sock, chatId, userMessage) {
-    if (isAutotypingEnabled()) {
+    const ghostActive = await isGhostModeActive();
+    if (ghostActive) {
+        return false;
+    }
+
+    const enabled = await isAutotypingEnabled();
+    if (enabled) {
         try {
             await sock.presenceSubscribe(chatId);
             await sock.sendPresenceUpdate('available', chatId);
@@ -66,7 +83,13 @@ async function handleAutotypingForMessage(sock, chatId, userMessage) {
 }
 
 async function handleAutotypingForCommand(sock, chatId) {
-    if (isAutotypingEnabled()) {
+    const ghostActive = await isGhostModeActive();
+    if (ghostActive) {
+        return false;
+    }
+
+    const enabled = await isAutotypingEnabled();
+    if (enabled) {
         try {
             await sock.presenceSubscribe(chatId);
             await sock.sendPresenceUpdate('available', chatId);
@@ -90,7 +113,13 @@ async function handleAutotypingForCommand(sock, chatId) {
 }
 
 async function showTypingAfterCommand(sock, chatId) {
-    if (isAutotypingEnabled()) {
+    const ghostActive = await isGhostModeActive();
+    if (ghostActive) {
+        return false;
+    }
+
+    const enabled = await isAutotypingEnabled();
+    if (enabled) {
         try {
             await sock.presenceSubscribe(chatId);
             await sock.sendPresenceUpdate('composing', chatId);
@@ -118,18 +147,22 @@ module.exports = {
         const channelInfo = context.channelInfo || {};
         
         try {
-            const config = initConfig();
+            const config = await initConfig();
             const action = args[0]?.toLowerCase();
             
             if (!action) {
+                const ghostActive = await isGhostModeActive();
                 await sock.sendMessage(chatId, {
                     text: `*⌨️ AUTOTYPING STATUS*\n\n` +
-                          `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n\n` +
+                          `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                          `*Ghost Mode:* ${ghostActive ? '👻 Active (blocks typing)' : '❌ Inactive'}\n` +
+                          `*Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                           `*Commands:*\n` +
                           `• \`.autotyping on\` - Enable auto-typing\n` +
                           `• \`.autotyping off\` - Disable auto-typing\n\n` +
                           `*What it does:*\n` +
-                          `When enabled, the bot will show "typing..." indicator while processing messages and commands.`,
+                          `When enabled, the bot will show "typing..." indicator while processing messages and commands.\n\n` +
+                          `*Note:* Ghost mode overrides autotyping to maintain stealth.`,
                     ...channelInfo
                 }, { quoted: message });
                 return;
@@ -144,10 +177,11 @@ module.exports = {
                     return;
                 }
                 config.enabled = true;
-                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                await saveConfig(config);
                 
+                const ghostActive = await isGhostModeActive();
                 await sock.sendMessage(chatId, {
-                    text: '✅ *Auto-typing enabled!*\n\nThe bot will now show typing indicator while processing.',
+                    text: `✅ *Auto-typing enabled!*\n\nThe bot will now show typing indicator while processing.${ghostActive ? '\n\n⚠️ *Ghost mode is active* - typing indicators are currently blocked.' : ''}`,
                     ...channelInfo
                 }, { quoted: message });
                 
@@ -160,7 +194,7 @@ module.exports = {
                     return;
                 }
                 config.enabled = false;
-                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                await saveConfig(config);
                 
                 await sock.sendMessage(chatId, {
                     text: '❌ *Auto-typing disabled!*\n\nThe bot will no longer show typing indicator.',
@@ -189,20 +223,3 @@ module.exports = {
     showTypingAfterCommand
 };
 
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

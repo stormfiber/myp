@@ -1,19 +1,3 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -28,8 +12,60 @@ const pino = require("pino");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const store = require('../lib/lightweight_store');
 
 if (!global.conns) global.conns = [];
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
+
+async function saveCloneSession(authId, data) {
+    if (HAS_DB) {
+        await store.saveSetting('clones', authId, data);
+    } else {
+        const sessionPath = path.join(process.cwd(), 'session', 'clones', authId);
+        if (!fs.existsSync(sessionPath)) {
+            fs.mkdirSync(sessionPath, { recursive: true });
+        }
+        fs.writeFileSync(path.join(sessionPath, 'session.json'), JSON.stringify(data));
+    }
+}
+
+async function getCloneSession(authId) {
+    if (HAS_DB) {
+        return await store.getSetting('clones', authId);
+    } else {
+        const sessionPath = path.join(process.cwd(), 'session', 'clones', authId, 'session.json');
+        if (fs.existsSync(sessionPath)) {
+            return JSON.parse(fs.readFileSync(sessionPath, 'utf-8'));
+        }
+        return null;
+    }
+}
+
+async function deleteCloneSession(authId) {
+    if (HAS_DB) {
+        await store.saveSetting('clones', authId, null);
+    } else {
+        const sessionPath = path.join(process.cwd(), 'session', 'clones', authId);
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+        }
+    }
+}
+
+async function getAllCloneSessions() {
+    if (HAS_DB) {
+        const settings = await store.getSetting('clones', 'all') || {};
+        return Object.keys(settings);
+    } else {
+        const clonesDir = path.join(process.cwd(), 'session', 'clones');
+        if (!fs.existsSync(clonesDir)) return [];
+        return fs.readdirSync(clonesDir);
+    }
+}
 
 module.exports = {
     command: 'rentbot',
@@ -52,7 +88,7 @@ module.exports = {
         const authId = crypto.randomBytes(4).toString('hex');
         const sessionPath = path.join(process.cwd(), 'session', 'clones', authId);
 
-        if (!fs.existsSync(sessionPath)) {
+        if (!HAS_DB && !fs.existsSync(sessionPath)) {
             fs.mkdirSync(sessionPath, { recursive: true });
         }
 
@@ -86,7 +122,8 @@ module.exports = {
                     code = code?.match(/.{1,4}/g)?.join("-") || code;
                     
                     const pairingText = `*MEGA-MD CLONE SYSTEM*\n\n` +
-                                       `Code: *${code}*\n\n` +
+                                       `Code: *${code}*\n` +
+                                       `Storage: *${HAS_DB ? 'Database' : 'File System'}*\n\n` +
                                        `1. Open WhatsApp Settings\n` +
                                        `2. Tap Linked Devices > Link with Phone Number\n` +
                                        `3. Enter the code above.\n\n` +
@@ -99,14 +136,42 @@ module.exports = {
                 }
             }
 
-            conn.ev.on('creds.update', saveCreds);
+            conn.ev.on('creds.update', async () => {
+                await saveCreds();
+                
+                if (HAS_DB) {
+                    try {
+                        await saveCloneSession(authId, {
+                            userNumber,
+                            createdAt: Date.now(),
+                            status: 'active'
+                        });
+                    } catch (e) {
+                        console.error("DB save error:", e.message);
+                    }
+                }
+            });
 
             conn.ev.on('connection.update', async (update) => {
                 const { connection, lastDisconnect } = update;
 
                 if (connection === 'open') {
                     global.conns.push(conn);
-                    await sock.sendMessage(chatId, { text: "✅ Clone is now Online!" }, { quoted: message });
+                    
+                    if (HAS_DB) {
+                        await saveCloneSession(authId, {
+                            userNumber,
+                            createdAt: Date.now(),
+                            status: 'online',
+                            connectedAt: Date.now()
+                        });
+                    }
+                    
+                    await sock.sendMessage(chatId, { 
+                        text: `✅ Clone is now Online!\n\n` +
+                              `ID: ${authId}\n` +
+                              `Storage: ${HAS_DB ? 'Database' : 'File System'}` 
+                    }, { quoted: message });
                 }
 
                 if (connection === 'close') {
@@ -114,7 +179,7 @@ module.exports = {
                     if (code !== DisconnectReason.loggedOut) {
                         startClone(); 
                     } else {
-                        fs.rmSync(sessionPath, { recursive: true, force: true });
+                        await deleteCloneSession(authId);
                         const index = global.conns.indexOf(conn);
                         if (index > -1) global.conns.splice(index, 1);
                     }
@@ -136,20 +201,3 @@ module.exports = {
         await startClone();
     }
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

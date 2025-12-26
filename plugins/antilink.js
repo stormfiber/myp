@@ -1,21 +1,42 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
+const store = require('../lib/lightweight_store');
 
+async function setAntilink(chatId, type, action) {
+    try {
+        await store.saveSetting(chatId, 'antilink', {
+            enabled: true,
+            action: action,
+            type: type
+        });
+        return true;
+    } catch (error) {
+        console.error('Error setting antilink:', error);
+        return false;
+    }
+}
 
-const { setAntilink, getAntilink, removeAntilink } = require('../lib/index');
+async function getAntilink(chatId, type) {
+    try {
+        const settings = await store.getSetting(chatId, 'antilink');
+        return settings || null;
+    } catch (error) {
+        console.error('Error getting antilink:', error);
+        return null;
+    }
+}
+
+async function removeAntilink(chatId, type) {
+    try {
+        await store.saveSetting(chatId, 'antilink', {
+            enabled: false,
+            action: null,
+            type: null
+        });
+        return true;
+    } catch (error) {
+        console.error('Error removing antilink:', error);
+        return false;
+    }
+}
 
 async function handleLinkDetection(sock, chatId, message, userMessage, senderId) {
     try {
@@ -200,22 +221,8 @@ module.exports = {
         }
     },
 
-    handleLinkDetection
+    handleLinkDetection,
+    setAntilink,
+    getAntilink,
+    removeAntilink
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

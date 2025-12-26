@@ -1,30 +1,25 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const warningsFilePath = path.join(__dirname, '../data/warnings.json');
 
-function loadWarnings() {
-  if (!fs.existsSync(warningsFilePath)) {
-    fs.writeFileSync(warningsFilePath, JSON.stringify({}), 'utf8');
+async function loadWarnings() {
+  if (HAS_DB) {
+    const warnings = await store.getSetting('global', 'warnings');
+    return warnings || {};
+  } else {
+    if (!fs.existsSync(warningsFilePath)) {
+      fs.writeFileSync(warningsFilePath, JSON.stringify({}), 'utf8');
+    }
+    const data = fs.readFileSync(warningsFilePath, 'utf8');
+    return JSON.parse(data);
   }
-  const data = fs.readFileSync(warningsFilePath, 'utf8');
-  return JSON.parse(data);
 }
 
 module.exports = {
@@ -49,29 +44,14 @@ module.exports = {
     }
 
     const userToCheck = mentionedJidList[0];
-    const warnings = loadWarnings();
+    const warnings = await loadWarnings();
     const warningCount = (warnings[chatId] && warnings[chatId][userToCheck]) || 0;
 
     await sock.sendMessage(chatId, { 
-      text: `@${userToCheck.split('@')[0]} has ${warningCount} warning(s).`,
+      text: `@${userToCheck.split('@')[0]} has ${warningCount} warning(s).\n\nStorage: ${HAS_DB ? 'Database' : 'File System'}`,
       mentions: [userToCheck],
       ...channelInfo
     }, { quoted: message });
   }
 };
 
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

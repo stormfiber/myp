@@ -1,26 +1,15 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const configPath = path.join(__dirname, '../data/autoStatus.json');
 
-if (!fs.existsSync(configPath)) {
+if (!HAS_DB && !fs.existsSync(configPath)) {
     if (!fs.existsSync(path.dirname(configPath))) {
         fs.mkdirSync(path.dirname(configPath), { recursive: true });
     }
@@ -42,40 +31,50 @@ const channelInfo = {
     }
 };
 
-function readConfig() {
+async function readConfig() {
     try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        return {
-            enabled: !!config.enabled,
-            reactOn: !!config.reactOn
-        };
+        if (HAS_DB) {
+            const config = await store.getSetting('global', 'autoStatus');
+            return config || { enabled: false, reactOn: false };
+        } else {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            return {
+                enabled: !!config.enabled,
+                reactOn: !!config.reactOn
+            };
+        }
     } catch (error) {
         console.error('Error reading auto status config:', error);
         return { enabled: false, reactOn: false };
     }
 }
 
-function writeConfig(config) {
+async function writeConfig(config) {
     try {
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        if (HAS_DB) {
+            await store.saveSetting('global', 'autoStatus', config);
+        } else {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        }
     } catch (error) {
         console.error('Error writing auto status config:', error);
     }
 }
 
-function isAutoStatusEnabled() {
-    const config = readConfig();
+async function isAutoStatusEnabled() {
+    const config = await readConfig();
     return config.enabled;
 }
 
-function isStatusReactionEnabled() {
-    const config = readConfig();
+async function isStatusReactionEnabled() {
+    const config = await readConfig();
     return config.reactOn;
 }
 
 async function reactToStatus(sock, statusKey) {
     try {
-        if (!isStatusReactionEnabled()) {
+        const enabled = await isStatusReactionEnabled();
+        if (!enabled) {
             return;
         }
 
@@ -106,7 +105,8 @@ async function reactToStatus(sock, statusKey) {
 
 async function handleStatusUpdate(sock, status) {
     try {
-        if (!isAutoStatusEnabled()) {
+        const enabled = await isAutoStatusEnabled();
+        if (!enabled) {
             return;
         }
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -184,7 +184,7 @@ module.exports = {
         const chatId = context.chatId || message.key.remoteJid;
         
         try {
-            let config = readConfig();
+            let config = await readConfig();
             if (!args || args.length === 0) {
                 const viewStatus = config.enabled ? '✅ Enabled' : '❌ Disabled';
                 const reactStatus = config.reactOn ? '✅ Enabled' : '❌ Disabled';
@@ -192,7 +192,8 @@ module.exports = {
                 await sock.sendMessage(chatId, { 
                     text: `🔄 *Auto Status Settings*\n\n` +
                           `📱 *Auto Status View:* ${viewStatus}\n` +
-                          `💫 *Status Reactions:* ${reactStatus}\n\n` +
+                          `💫 *Status Reactions:* ${reactStatus}\n` +
+                          `🗄️ *Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                           `*Commands:*\n` +
                           `• \`.autostatus on\` - Enable auto view\n` +
                           `• \`.autostatus off\` - Disable auto view\n` +
@@ -207,7 +208,7 @@ module.exports = {
             
             if (command === 'on') {
                 config.enabled = true;
-                writeConfig(config);
+                await writeConfig(config);
                 
                 await sock.sendMessage(chatId, { 
                     text: '✅ *Auto status view enabled!*\n\n' +
@@ -217,10 +218,10 @@ module.exports = {
                 
             } else if (command === 'off') {
                 config.enabled = false;
-                writeConfig(config);
+                await writeConfig(config);
                 
                 await sock.sendMessage(chatId, { 
-                    text: '*Auto status view disabled!*\n\n' +
+                    text: '❌ *Auto status view disabled!*\n\n' +
                           'Bot will no longer automatically view statuses.',
                     ...channelInfo
                 }, { quoted: message });
@@ -228,7 +229,7 @@ module.exports = {
             } else if (command === 'react') {
                 if (!args[1]) {
                     await sock.sendMessage(chatId, { 
-                        text: '*Please specify on/off for reactions!*\n\n' +
+                        text: '❌ *Please specify on/off for reactions!*\n\n' +
                               'Usage: `.autostatus react on/off`',
                         ...channelInfo
                     }, { quoted: message });
@@ -239,7 +240,7 @@ module.exports = {
                 
                 if (reactCommand === 'on') {
                     config.reactOn = true;
-                    writeConfig(config);
+                    await writeConfig(config);
                     
                     await sock.sendMessage(chatId, { 
                         text: '💫 *Status reactions enabled!*\n\n' +
@@ -249,17 +250,17 @@ module.exports = {
                     
                 } else if (reactCommand === 'off') {
                     config.reactOn = false;
-                    writeConfig(config);
+                    await writeConfig(config);
                     
                     await sock.sendMessage(chatId, { 
-                        text: '*Status reactions disabled!*\n\n' +
+                        text: '❌ *Status reactions disabled!*\n\n' +
                               'Bot will no longer react to status updates.',
                         ...channelInfo
                     }, { quoted: message });
                     
                 } else {
                     await sock.sendMessage(chatId, { 
-                        text: '*Invalid reaction command!*\n\n' +
+                        text: '❌ *Invalid reaction command!*\n\n' +
                               'Usage: `.autostatus react on/off`',
                         ...channelInfo
                     }, { quoted: message });
@@ -267,7 +268,7 @@ module.exports = {
                 
             } else {
                 await sock.sendMessage(chatId, { 
-                    text: '*Invalid command!*\n\n' +
+                    text: '❌ *Invalid command!*\n\n' +
                           '*Usage:*\n' +
                           '• `.autostatus on/off` - Enable/disable auto view\n' +
                           '• `.autostatus react on/off` - Enable/disable reactions',
@@ -292,20 +293,3 @@ module.exports = {
     readConfig,
     writeConfig
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

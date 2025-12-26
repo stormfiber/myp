@@ -1,38 +1,36 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
+const store = require('../lib/lightweight_store');
 const fs = require('fs');
 
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 const ANTICALL_PATH = './data/anticall.json';
-function readState() {
+
+async function readState() {
   try {
-    if (!fs.existsSync(ANTICALL_PATH)) return { enabled: false };
-    const raw = fs.readFileSync(ANTICALL_PATH, 'utf8');
-    const data = JSON.parse(raw || '{}');
-    return { enabled: !!data.enabled };
+    if (HAS_DB) {
+      const settings = await store.getSetting('global', 'anticall');
+      return settings || { enabled: false };
+    } else {
+      if (!fs.existsSync(ANTICALL_PATH)) return { enabled: false };
+      const raw = fs.readFileSync(ANTICALL_PATH, 'utf8');
+      const data = JSON.parse(raw || '{}');
+      return { enabled: !!data.enabled };
+    }
   } catch {
     return { enabled: false };
   }
 }
 
-function writeState(enabled) {
+async function writeState(enabled) {
   try {
-    if (!fs.existsSync('./data')) fs.mkdirSync('./data', { recursive: true });
-    fs.writeFileSync(ANTICALL_PATH, JSON.stringify({ enabled: !!enabled }, null, 2));
+    if (HAS_DB) {
+      await store.saveSetting('global', 'anticall', { enabled: !!enabled });
+    } else {
+      if (!fs.existsSync('./data')) fs.mkdirSync('./data', { recursive: true });
+      fs.writeFileSync(ANTICALL_PATH, JSON.stringify({ enabled: !!enabled }, null, 2));
+    }
   } catch (e) {
     console.error('Error writing anticall state:', e);
   }
@@ -48,7 +46,7 @@ module.exports = {
   
   async handler(sock, message, args, context = {}) {
     const chatId = context.chatId || message.key.remoteJid;
-    const state = readState();
+    const state = await readState();
     const sub = args.join(' ').trim().toLowerCase();
 
     if (!sub || !['on', 'off', 'status'].includes(sub)) {
@@ -61,7 +59,8 @@ module.exports = {
                 '• `.anticall on` - Enable\n' +
                 '• `.anticall off` - Disable\n' +
                 '• `.anticall status` - Current status\n\n' +
-                `*Current Status:* ${state.enabled ? '✅ ENABLED' : '❌ DISABLED'}`
+                `*Current Status:* ${state.enabled ? '✅ ENABLED' : '❌ DISABLED'}\n` +
+                `*Storage:* ${HAS_DB ? 'Database' : 'File System'}`
         },
         { quoted: message }
       );
@@ -71,7 +70,8 @@ module.exports = {
         chatId,
         { 
           text: `📵 *Anticall Status*\n\n` +
-                `Current: ${state.enabled ? '✅ *ENABLED*' : '❌ *DISABLED*'}\n\n` +
+                `Current: ${state.enabled ? '✅ *ENABLED*' : '❌ *DISABLED*'}\n` +
+                `Storage: ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                 `${state.enabled ? 'All incoming calls will be rejected and blocked.' : 'Incoming calls are allowed.'}`
         },
         { quoted: message }
@@ -79,7 +79,7 @@ module.exports = {
     }
 
     const enable = sub === 'on';
-    writeState(enable);
+    await writeState(enable);
 
     await sock.sendMessage(
       chatId,
@@ -94,20 +94,3 @@ module.exports = {
   readState,
   writeState
 };
-
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

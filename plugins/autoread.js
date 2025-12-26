@@ -1,39 +1,41 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
-
-
 const fs = require('fs');
 const path = require('path');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const configPath = path.join(__dirname, '..', 'data', 'autoread.json');
 
-function initConfig() {
-    if (!fs.existsSync(configPath)) {
-        const dataDir = path.dirname(configPath);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
+async function initConfig() {
+    if (HAS_DB) {
+        const config = await store.getSetting('global', 'autoread');
+        return config || { enabled: false };
+    } else {
+        if (!fs.existsSync(configPath)) {
+            const dataDir = path.dirname(configPath);
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            fs.writeFileSync(configPath, JSON.stringify({ enabled: false }, null, 2));
         }
-        fs.writeFileSync(configPath, JSON.stringify({ enabled: false }, null, 2));
+        return JSON.parse(fs.readFileSync(configPath));
     }
-    return JSON.parse(fs.readFileSync(configPath));
 }
 
-function isAutoreadEnabled() {
+async function saveConfig(config) {
+    if (HAS_DB) {
+        await store.saveSetting('global', 'autoread', config);
+    } else {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    }
+}
+
+async function isAutoreadEnabled() {
     try {
-        const config = initConfig();
+        const config = await initConfig();
         return config.enabled;
     } catch (error) {
         console.error('Error checking autoread status:', error);
@@ -81,7 +83,17 @@ function isBotMentionedInMessage(message, botNumber) {
 }
 
 async function handleAutoread(sock, message) {
-    if (isAutoreadEnabled()) {
+    try {
+        const ghostMode = await store.getSetting('global', 'ghostMode');
+        if (ghostMode && ghostMode.enabled) {
+            console.log('👻 Stealth mode active - skipping read receipt');
+            return false;
+        }
+    } catch (err) {
+    }
+
+    const enabled = await isAutoreadEnabled();
+    if (enabled) {
         const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
         
         const isBotMentioned = isBotMentionedInMessage(message, botNumber);
@@ -118,19 +130,24 @@ module.exports = {
         const channelInfo = context.channelInfo || {};
         
         try {
-            const config = initConfig();
+            const config = await initConfig();
             const action = args[0]?.toLowerCase();
             
             if (!action) {
+                const ghostMode = await store.getSetting('global', 'ghostMode');
+                const ghostActive = ghostMode && ghostMode.enabled;
+                
                 await sock.sendMessage(chatId, {
                     text: `*📖 AUTOREAD STATUS*\n\n` +
-                          `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n\n` +
+                          `*Current Status:* ${config.enabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                          `*Stealth Mode:* ${ghostActive ? '👻 Active (overrides autoread)' : '❌ Inactive'}\n` +
+                          `*Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                           `*Commands:*\n` +
                           `• \`.autoread on\` - Enable auto-read\n` +
                           `• \`.autoread off\` - Disable auto-read\n\n` +
                           `*What it does:*\n` +
                           `When enabled, the bot automatically marks all messages as read (blue ticks).\n\n` +
-                          `*Note:* Bot mentions are excluded from auto-read.`,
+                          `*Note:* Ghost mode takes priority over autoread. If ghost mode is active, no read receipts will be sent.`,
                     ...channelInfo
                 }, { quoted: message });
                 return;
@@ -145,10 +162,13 @@ module.exports = {
                     return;
                 }
                 config.enabled = true;
-                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                await saveConfig(config);
+                
+                const ghostMode = await store.getSetting('global', 'ghostMode');
+                const ghostActive = ghostMode && ghostMode.enabled;
                 
                 await sock.sendMessage(chatId, {
-                    text: '✅ *Auto-read enabled!*\n\nAll messages will now be automatically marked as read.',
+                    text: `✅ *Auto-read enabled!*\n\nAll messages will now be automatically marked as read.${ghostActive ? '\n\n⚠️ *Note:* Ghost mode is currently active and will override autoread.' : ''}`,
                     ...channelInfo
                 }, { quoted: message });
                 
@@ -161,7 +181,7 @@ module.exports = {
                     return;
                 }
                 config.enabled = false;
-                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                await saveConfig(config);
                 
                 await sock.sendMessage(chatId, {
                     text: '❌ *Auto-read disabled!*\n\nMessages will no longer be automatically marked as read.',
@@ -190,18 +210,3 @@ module.exports = {
 };
 
 
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 

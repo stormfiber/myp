@@ -1,22 +1,13 @@
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
 
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
+const store = require('../lib/lightweight_store');
+
+const MONGO_URL = process.env.MONGO_URL;
+const POSTGRES_URL = process.env.POSTGRES_URL;
+const MYSQL_URL = process.env.MYSQL_URL;
+const HAS_DB = !!(MONGO_URL || POSTGRES_URL || MYSQL_URL);
 
 const USER_GROUP_DATA = path.join(__dirname, '../data/userGroupData.json');
 const chatMemory = {
@@ -24,22 +15,31 @@ const chatMemory = {
     userInfo: new Map()
 };
 
-function loadUserGroupData() {
+async function loadUserGroupData() {
     try {
-        return JSON.parse(fs.readFileSync(USER_GROUP_DATA));
+        if (HAS_DB) {
+            const data = await store.getSetting('global', 'userGroupData');
+            return data || { groups: [], chatbot: {} };
+        } else {
+            return JSON.parse(fs.readFileSync(USER_GROUP_DATA));
+        }
     } catch (error) {
         console.error('Error loading user group data:', error.message);
         return { groups: [], chatbot: {} };
     }
 }
 
-function saveUserGroupData(data) {
+async function saveUserGroupData(data) {
     try {
-        const dataDir = path.dirname(USER_GROUP_DATA);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
+        if (HAS_DB) {
+            await store.saveSetting('global', 'userGroupData', data);
+        } else {
+            const dataDir = path.dirname(USER_GROUP_DATA);
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            fs.writeFileSync(USER_GROUP_DATA, JSON.stringify(data, null, 2));
         }
-        fs.writeFileSync(USER_GROUP_DATA, JSON.stringify(data, null, 2));
     } catch (error) {
         console.error('Error saving user group data:', error.message);
     }
@@ -77,7 +77,7 @@ function extractUserInfo(message) {
 }
 
 async function handleChatbotResponse(sock, chatId, message, userMessage, senderId) {
-    const data = loadUserGroupData();
+    const data = await loadUserGroupData();
     if (!data.chatbot[chatId]) return;
 
     try {
@@ -309,6 +309,7 @@ module.exports = {
             await showTyping(sock, chatId);
             return sock.sendMessage(chatId, {
                 text: `*🤖 CHATBOT SETUP*\n\n` +
+                      `*Storage:* ${HAS_DB ? 'Database' : 'File System'}\n\n` +
                       `*Commands:*\n` +
                       `• \`.chatbot on\` - Enable chatbot\n` +
                       `• \`.chatbot off\` - Disable chatbot\n\n` +
@@ -323,7 +324,7 @@ module.exports = {
             });
         }
 
-        const data = loadUserGroupData();
+        const data = await loadUserGroupData();
 
         if (match === 'on') {
             await showTyping(sock, chatId);
@@ -334,7 +335,7 @@ module.exports = {
                 });
             }
             data.chatbot[chatId] = true;
-            saveUserGroupData(data);
+            await saveUserGroupData(data);
             console.log(`Chatbot enabled for group ${chatId}`);
             return sock.sendMessage(chatId, { 
                 text: '✅ *Chatbot enabled!*\n\nMention me or reply to my messages to chat.',
@@ -351,7 +352,7 @@ module.exports = {
                 });
             }
             delete data.chatbot[chatId];
-            saveUserGroupData(data);
+            await saveUserGroupData(data);
             console.log(`Chatbot disabled for group ${chatId}`);
             return sock.sendMessage(chatId, { 
                 text: '❌ *Chatbot disabled!*\n\nI will no longer respond to mentions.',
@@ -371,19 +372,3 @@ module.exports = {
     saveUserGroupData
 };
 
-
-/*****************************************************************************
- *                                                                           *
- *                     Developed By Qasim Ali                                *
- *                                                                           *
- *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
- *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
- *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
- *                                                                           *
- *    © 2026 GlobalTechInfo. All rights reserved.                            *
- *                                                                           *
- *    Description: This file is part of the MEGA-MD Project.                 *
- *                 Unauthorized copying or distribution is prohibited.       *
- *                                                                           *
- *****************************************************************************/
- 
