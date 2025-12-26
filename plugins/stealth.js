@@ -1,11 +1,11 @@
 const store = require('../lib/lightweight_store');
 
 module.exports = {
-    command: 'alwaysonline',
-    aliases: ['stealth', 'stealthmode'],
+    command: 'stealth',
+    aliases: ['alwaysonline', 'stealthmode'],
     category: 'owner',
     description: 'Toggle online status - bot will not send presence updates if off',
-    usage: '.alwaysonline <on|off>',
+    usage: '.stealth <on|off>',
     ownerOnly: 'true',
 
     async handler(sock, message, args, context = {}) {
@@ -34,7 +34,7 @@ module.exports = {
             } catch (e) {}
             
             return await sock.sendMessage(chatId, { 
-                text: `👻 *Stealth Mode Status:* ${status}\n\n*Usage:* .alwaysonline <on|off>\n\n*What it does:*\n• Blocks all presence updates (typing, online, last seen)\n• Makes the bot completely invisible\n\n*When enabled:*\n✓ No "typing..." indicator\n✓ No "online" status\n✓ Complete stealth mode${autotypingWarning}${autoreadWarning}` 
+                text: `👻 *Stealth Mode Status:* ${status}\n\n*Usage:* .stealth <on|off>\n\n*What it does:*\n• Blocks all presence updates (typing, online, last seen)\n• Makes the bot completely invisible\n\n*When enabled:*\n✓ No "typing..." indicator\n✓ No "online" status\n✓ Complete stealth mode${autotypingWarning}${autoreadWarning}` 
             }, { quoted: message });
         }
 

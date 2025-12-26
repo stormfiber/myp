@@ -1,10 +1,26 @@
+/*****************************************************************************
+ *                                                                           *
+ *                     Developed By Qasim Ali                                *
+ *                                                                           *
+ *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
+ *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
+ *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
+ *                                                                           *
+ *    © 2026 GlobalTechInfo. All rights reserved.                            *
+ *                                                                           *
+ *    Description: This file is part of the MEGA-MD Project.                 *
+ *                 Unauthorized copying or distribution is prohibited.       *
+ *                                                                           *
+ *****************************************************************************/
+
+
 const CommandHandler = require('../lib/commandHandler');
 
 let activeMaintenanceTimer = null;
 
 module.exports = {
   command: 'maintenance',
-  aliases: ['mt', 'lockdown'],
+  aliases: ['mtnc', 'lockdown'],
   category: 'owner',
   description: 'Disable non-owner commands for a duration or stop it early',
   usage: '.maintenance [minutes / stop]',
@@ -75,3 +91,19 @@ module.exports = {
     }
   }
 };
+
+/*****************************************************************************
+ *                                                                           *
+ *                     Developed By Qasim Ali                                *
+ *                                                                           *
+ *  🌐  GitHub   : https://github.com/GlobalTechInfo                         *
+ *  ▶️  YouTube  : https://youtube.com/@GlobalTechInfo                       *
+ *  💬  WhatsApp : https://whatsapp.com/channel/0029VagJIAr3bbVBCpEkAM07     *
+ *                                                                           *
+ *    © 2026 GlobalTechInfo. All rights reserved.                            *
+ *                                                                           *
+ *    Description: This file is part of the MEGA-MD Project.                 *
+ *                 Unauthorized copying or distribution is prohibited.       *
+ *                                                                           *
+ *****************************************************************************/
+
