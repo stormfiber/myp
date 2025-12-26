@@ -41,8 +41,7 @@ Click the button below to fork the Mega Bot repository to your GitHub account:
 
 ### Step 2: Get Pair Code
 
-Deploy the bot and easily connect it to your WhatsApp account by pair code. Click the button below to deploy the bot on Replit.
-
+Deploy the bot and easily connect it to your WhatsApp account by pair code.
 <div align="center">
   <a href="https://mega-pairing.onrender.com" target="_blank">
     <img src="https://img.shields.io/badge/SESSION-ID-ff4d4d?style=for-the-badge" alt="Generate Pair Code"/>
