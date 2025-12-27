@@ -18,6 +18,16 @@ const settings = require('../settings');
 const commandHandler = require('../lib/commandHandler');
 const path = require('path');
 const fs = require('fs');
+function formatTime() {
+    const now = new Date();
+    const options = { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false,
+        timeZone: settings.timeZone || 'UTC'
+    };
+    return now.toLocaleTimeString('en-US', options);
+}
 
 const menuStyles = [
   {
@@ -25,7 +35,9 @@ const menuStyles = [
       let t = `╭━━『 *MEGA MENU* 』━⬣\n`;
       t += `┃ ✨ *Bot: ${info.bot}*\n`;
       t += `┃ 🔧 *Prefix: ${info.prefix}*\n`;
-      t += `┃ 📦 *Plugins: ${info.total}*\n`;
+      t += `┃ 📦 *Plugin: ${info.total}*\n`;
+      t += `┃ 💎 *Version: ${info.version}*\n`;
+      t += `┃ ⏰ *Time: ${info.time}*\n`;
 
       for (const [cat, cmds] of categories) {
         t += `┃\n┃━━━ *${cat.toUpperCase()}* ━✦\n`;
@@ -40,9 +52,11 @@ const menuStyles = [
   {
     render({ title, info, categories, prefix }) {
       let t = `◈╭─❍「 *MEGA MENU* 」❍\n`;
-      t += `◈├• ✨ *Bot: ${info.bot}*\n`;
-      t += `◈├• 🔧 *Prefix: ${info.prefix}*\n`;
-      t += `◈├• 📦 *Plugins: ${info.total}*\n`;
+      t += `◈├• 🌟 *Bot: ${info.bot}*\n`;
+      t += `◈├• ⚙️ *Prefix: ${info.prefix}*\n`;
+      t += `◈├• 🍫 *Plugins: ${info.total}*\n`;
+      t += `◈├• 💎 *Version: ${info.version}*\n`;
+      t += `◈├• ⏰ *Time: ${info.time}*\n`;
 
       for (const [cat, cmds] of categories) {
         t += `◈├─❍「 *${cat.toUpperCase()}* 」❍\n`;
@@ -57,9 +71,11 @@ const menuStyles = [
   {
     render({ title, info, categories, prefix }) {
       let t = `┏━━━━ *MEGA MENU* ━━━┓\n`;
-      t += `┃• *Bot: ${info.bot}*\n`;
-      t += `┃• *Prefix : ${info.prefix}*\n`;
+      t += `┃• *Bot : ${info.bot}*\n`;
+      t += `┃• *Prefixes : ${info.prefix}*\n`;
       t += `┃• *Plugins : ${info.total}*\n`;
+      t += `┃• *Version : ${info.version}*\n`;
+      t += `┃• *Time : ${info.time}*\n`;
 
       for (const [cat, cmds] of categories) {
         t += `┃\n┃━━━━ *${cat.toUpperCase()}* ━━◆\n`;
@@ -75,8 +91,10 @@ const menuStyles = [
     render({ title, info, categories, prefix }) {
       let t = `✦═══ *MEGA MENU* ═══✦\n`;
       t += `║➩ *Bot: ${info.bot}*\n`;
-      t += `║➩ *Prefix: ${info.prefix}*\n`;
+      t += `║➩ *Prefixes: ${info.prefix}*\n`;
       t += `║➩ *Plugins: ${info.total}*\n`;
+      t += `║➩ *Version: ${info.version}*\n`;
+      t += `║➩ *Time: ${info.time}*\n`;
 
       for (const [cat, cmds] of categories) {
         t += `║\n║══ *${cat.toUpperCase()}* ══✧\n`;
@@ -92,8 +110,10 @@ const menuStyles = [
     render({ title, info, categories, prefix }) {
       let t = `❀━━━ *MEGA MENU* ━━━❀\n`;
       t += `┃☞ *Bot: ${info.bot}*\n`;
-      t += `┃☞ *Prefix: ${info.prefix}*\n`;
+      t += `┃☞ *Prefixes: ${info.prefix}*\n`;
       t += `┃☞ *Plugins: ${info.total}*\n`;
+      t += `┃☞ *Version: ${info.version}*\n`;
+      t += `┃☞ *Time: ${info.time}*\n`;
 
       for (const [cat, cmds] of categories) {
         t += `┃━━━〔 *${cat.toUpperCase()}* 〕━❀\n`;
@@ -189,12 +209,14 @@ module.exports = {
     const style = pick(menuStyles);
 
     const text = style.render({
-      title: settings.packname,
+      title: settings.botName,
       prefix,
       info: {
-        bot: settings.packname,
+        bot: settings.botName,
         prefix: settings.prefixes.join(', '),
-        total: commandHandler.commands.size
+        total: commandHandler.commands.size,
+        version: settings.version || "5.0.0",
+        time: formatTime()
       },
       categories: commandHandler.categories
     });
