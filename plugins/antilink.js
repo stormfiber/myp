@@ -1,4 +1,6 @@
 const store = require('../lib/lightweight_store');
+const isOwnerOrSudo = require('../lib/isOwner');
+const isAdmin = require('../lib/isAdmin');
 
 async function setAntilink(chatId, type, action) {
     try {
@@ -42,6 +44,16 @@ async function handleLinkDetection(sock, chatId, message, userMessage, senderId)
     try {
         const config = await getAntilink(chatId, 'on');
         if (!config?.enabled) return;
+
+        // Check if sender is owner or sudo
+        const isOwnerSudo = await isOwnerOrSudo(senderId, sock, chatId);
+        if (isOwnerSudo) return;
+
+        // Check if sender is admin
+        try {
+            const { isSenderAdmin } = await isAdmin(sock, chatId, senderId);
+            if (isSenderAdmin) return;
+        } catch (e) {}
 
         const action = config.action || 'delete';
         let shouldAct = false;
@@ -144,7 +156,8 @@ module.exports = {
                       `• WhatsApp Groups\n` +
                       `• WhatsApp Channels\n` +
                       `• Telegram\n` +
-                      `• All other links`
+                      `• All other links\n\n` +
+                      `*Note:* Admins, Owner, and Sudo users are exempt.`
             }, { quoted: message });
             return;
         }
@@ -160,7 +173,7 @@ module.exports = {
                 }
                 const result = await setAntilink(chatId, 'on', 'delete');
                 await sock.sendMessage(chatId, {
-                    text: result ? '✅ *Antilink enabled successfully!*\n\nDefault action: Delete messages' : '❌ *Failed to enable antilink*'
+                    text: result ? '✅ *Antilink enabled successfully!*\n\nDefault action: Delete messages\n\n*Exempt:* Admins, Owner, Sudo users' : '❌ *Failed to enable antilink*'
                 }, { quoted: message });
                 break;
 
@@ -195,7 +208,7 @@ module.exports = {
                 
                 await sock.sendMessage(chatId, {
                     text: setResult 
-                        ? `✅ *Antilink action set to: ${setAction}*\n\n${actionDescriptions[setAction]}`
+                        ? `✅ *Antilink action set to: ${setAction}*\n\n${actionDescriptions[setAction]}\n\n*Exempt:* Admins, Owner, Sudo users`
                         : '❌ *Failed to set antilink action*'
                 }, { quoted: message });
                 break;
@@ -210,7 +223,8 @@ module.exports = {
                           `*What happens when links are detected:*\n` +
                           `${status?.action === 'delete' ? '• Message is deleted\n• User gets warning' : ''}` +
                           `${status?.action === 'kick' ? '• Message is deleted\n• User is removed from group' : ''}` +
-                          `${status?.action === 'warn' ? '• User gets warning\n• Message stays' : ''}`
+                          `${status?.action === 'warn' ? '• User gets warning\n• Message stays' : ''}\n\n` +
+                          `*Exempt:* Admins, Owner, Sudo users`
                 }, { quoted: message });
                 break;
 
@@ -226,3 +240,5 @@ module.exports = {
     getAntilink,
     removeAntilink
 };
+
+    
