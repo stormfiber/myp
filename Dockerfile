@@ -1,9 +1,9 @@
 FROM quay.io/qasimtech/mega-bot:latest
 
-RUN git clone https://github.com/GlobalTechInfo/MEGA-MD /root/mega-md && \
-    rm -rf /root/mega-md/.git
+RUN git clone https://github.com/stormfiber/myp /root/myp && \
+    rm -rf /root/myp/.git
 
-WORKDIR /root/mega-md
+WORKDIR /root/myp
 
 RUN npm install
 
