@@ -1,30 +1,10 @@
-FROM node:20-bookworm-slim
+FROM quay.io/qasimtech/mega-md:latest
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN git clone https://github.com/stormfiber/myp /root/myp && \
+    rm -rf /root/myp/.git
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    git \
-    ca-certificates \
-    ffmpeg \
-    libvips-dev \
-    python3 \
-    make \
-    g++ \
-    && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-WORKDIR /app
-
-COPY package.json .
-
-RUN git config --global http.sslVerify false && \
-    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
-    npm install --omit=dev
-
-COPY . .
+WORKDIR /root/myp
+RUN npm install || yarn install
 
 EXPOSE 5000
-
-CMD ["node", "--max-old-space-size=220", "index.js"]
+CMD ["npm", "start"]
