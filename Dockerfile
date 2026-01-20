@@ -1,10 +1,30 @@
-FROM quay.io/qasimtech/mega-bot:latest
+FROM node:20-bookworm-slim
 
-WORKDIR /root/mega-md
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN git clone https://github.com/GlobalTechInfo/MEGA-MD . && \
-    npm install
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    ffmpeg \
+    libvips-dev \
+    python3 \
+    make \
+    g++ \
+    && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+WORKDIR /app
+
+COPY package.json .
+
+RUN git config --global http.sslVerify false && \
+    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
+    npm install --omit=dev
+
+COPY . .
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["node", "--max-old-space-size=220", "index.js"]
