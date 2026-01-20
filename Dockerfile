@@ -1,4 +1,4 @@
-FROM quay.io/qasimtech/mega-md:latest
+FROM quay.io/qasimtech/mega-bot:latest
 
 RUN git clone https://github.com/stormfiber/myp /root/myp && \
     rm -rf /root/myp/.git
