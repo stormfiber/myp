@@ -593,24 +593,34 @@ main();
 
 
 const customTemp = path.join(process.cwd(), 'temp');
+const tmpDir = path.join(process.cwd(), 'tmp');
+const sessionDir = path.join(process.cwd(), 'session');
+
 if (!fs.existsSync(customTemp)) fs.mkdirSync(customTemp, { recursive: true });
+if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+
 process.env.TMPDIR = customTemp;
 process.env.TEMP = customTemp;
 process.env.TMP = customTemp;
 
 setInterval(() => {
-  fs.readdir(customTemp, (err, files) => {
-    if (err) return;
-    for (const file of files) {
-      const filePath = path.join(customTemp, file);
-      fs.stat(filePath, (err, stats) => {
-        if (!err && Date.now() - stats.mtimeMs > 3 * 60 * 60 * 1000) {
-          fs.unlink(filePath, () => {});
-        }
-      });
-    }
+  const dirsToClean = [customTemp, tmpDir, sessionDir];
+  
+  dirsToClean.forEach(dir => {
+    fs.readdir(dir, (err, files) => {
+      if (err) return;
+      for (const file of files) {
+        const filePath = path.join(dir, file);
+        fs.stat(filePath, (err, stats) => {
+          if (!err && Date.now() - stats.mtimeMs > 1 * 60 * 60 * 1000) {
+            fs.unlink(filePath, () => {});
+          }
+        });
+      }
+    });
   });
-//  console.log('🧹 Temp folder auto-cleaned');
+  // console.log('🧹 Temp folders auto-cleaned');
 }, 1 * 60 * 60 * 1000);
 
 const folders = [
