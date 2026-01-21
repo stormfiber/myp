@@ -7,4 +7,4 @@ WORKDIR /root/myp
 RUN npm install || yarn install
 
 EXPOSE 5000
-CMD ["npm", "start"]
+CMD ["node", "--max-old-space-size=220", "index.js"]
